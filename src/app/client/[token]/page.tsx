@@ -18,6 +18,8 @@ export default function ClientPage() {
   const [verified, setVerified] = useState(false)
   const [existingClientId, setExistingClientId] = useState<string | null>(null)
   const [existingClientData, setExistingClientData] = useState<Record<string, unknown> | null>(null)
+  const [confirmEmail, setConfirmEmail] = useState('')
+  const [confirmed, setConfirmed] = useState(false)
   const [form, setForm] = useState({
     first_name: '',
     last_name: '',
@@ -36,7 +38,6 @@ export default function ClientPage() {
         .select('*')
         .eq('token', token)
         .maybeSingle()
-
       if (data) {
         setIsReturning(true)
         setExistingClientId(data.id)
@@ -72,7 +73,6 @@ export default function ClientPage() {
       .eq('token', token)
       .or(`email.eq.${verifyInput},phone.eq.${verifyInput}`)
       .maybeSingle()
-
     if (data) {
       setVerified(true)
       setExistingClientId(data.id)
@@ -83,10 +83,12 @@ export default function ClientPage() {
     }
   }
 
+  const emailsMatch = form.email === confirmEmail
+  const canContinue = form.first_name && form.last_name && form.email && confirmEmail && emailsMatch && confirmed
+
   const handleSubmit = async () => {
     if (files.length === 0) return
     setLoading(true)
-
     try {
       let clientId = existingClientId
       let clientData: Record<string, unknown> = form
@@ -97,7 +99,6 @@ export default function ClientPage() {
           .insert([{ ...form, token, fiscal_year: parseInt(form.fiscal_year) }])
           .select()
           .single()
-
         if (error) throw error
         clientId = data.id
         clientData = data
@@ -112,7 +113,6 @@ export default function ClientPage() {
         const { error: uploadError } = await supabase.storage
           .from('documents')
           .upload(path, file)
-
         if (!uploadError) {
           await supabase.from('documents').insert([{
             client_id: clientId,
@@ -194,6 +194,7 @@ export default function ClientPage() {
 
         <div className={`transition-all duration-300 ${animating ? 'opacity-0 translate-y-2' : 'opacity-100 translate-y-0'}`}>
 
+          {/* Welcome back */}
           {isReturning && !verified && (
             <div className={`${card} border rounded-2xl p-6`}>
               <p className={`text-sm font-medium ${text} mb-1`}>Welcome back!</p>
@@ -213,6 +214,7 @@ export default function ClientPage() {
             </div>
           )}
 
+          {/* Step 1 - Personal info */}
           {!isReturning && step === 1 && (
             <div className={`${card} border rounded-2xl p-6`}>
               <p className={`text-xs font-medium ${subtext} uppercase tracking-wider mb-4`}>Personal information</p>
@@ -232,11 +234,26 @@ export default function ClientPage() {
                   <input name="email" value={form.email} onChange={handleChange} placeholder="john@email.com" className={`w-full border rounded-lg px-3 py-2 text-sm ${input}`} />
                 </div>
                 <div>
-                  <label className={`text-xs ${label} mb-1 block`}>Phone</label>
-                  <input name="phone" value={form.phone} onChange={handleChange} placeholder="+1 555 000 0000" className={`w-full border rounded-lg px-3 py-2 text-sm ${input}`} />
+                  <label className={`text-xs ${label} mb-1 block`}>Confirm email</label>
+                  <input
+                    value={confirmEmail}
+                    onChange={e => setConfirmEmail(e.target.value)}
+                    placeholder="john@email.com"
+                    className={`w-full border rounded-lg px-3 py-2 text-sm ${input} ${confirmEmail && !emailsMatch ? 'border-red-400' : ''}`}
+                  />
+                  {confirmEmail && !emailsMatch && (
+                    <p className="text-xs text-red-400 mt-1">Emails do not match</p>
+                  )}
+                  {confirmEmail && emailsMatch && (
+                    <p className="text-xs text-green-500 mt-1">✓ Emails match</p>
+                  )}
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3 mb-3">
+                <div>
+                  <label className={`text-xs ${label} mb-1 block`}>Phone</label>
+                  <input name="phone" value={form.phone} onChange={handleChange} placeholder="+1 555 000 0000" className={`w-full border rounded-lg px-3 py-2 text-sm ${input}`} />
+                </div>
                 <div>
                   <label className={`text-xs ${label} mb-1 block`}>State of residence</label>
                   <select name="state" value={form.state} onChange={handleChange} className={`w-full border rounded-lg px-3 py-2 text-sm ${input}`}>
@@ -260,6 +277,8 @@ export default function ClientPage() {
                     <option>Wisconsin</option><option>Wyoming</option>
                   </select>
                 </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3 mb-4">
                 <div>
                   <label className={`text-xs ${label} mb-1 block`}>Tax year</label>
                   <select name="fiscal_year" value={form.fiscal_year} onChange={handleChange} className={`w-full border rounded-lg px-3 py-2 text-sm ${input}`}>
@@ -268,20 +287,44 @@ export default function ClientPage() {
                     <option>2023</option>
                   </select>
                 </div>
+                <div>
+                  <label className={`text-xs ${label} mb-1 block`}>Marital status</label>
+                  <select name="marital_status" value={form.marital_status} onChange={handleChange} className={`w-full border rounded-lg px-3 py-2 text-sm ${input}`}>
+                    <option value="">Select...</option>
+                    <option>Single</option>
+                    <option>Married (joint return)</option>
+                    <option>Married (separate return)</option>
+                    <option>Head of household</option>
+                  </select>
+                </div>
               </div>
-              <div className="mb-4">
-                <label className={`text-xs ${label} mb-1 block`}>Marital status</label>
-                <select name="marital_status" value={form.marital_status} onChange={handleChange} className={`w-full border rounded-lg px-3 py-2 text-sm ${input}`}>
-                  <option value="">Select...</option>
-                  <option>Single</option>
-                  <option>Married (joint return)</option>
-                  <option>Married (separate return)</option>
-                  <option>Head of household</option>
-                </select>
-              </div>
+
+              {/* Resumen y confirmación */}
+              {form.first_name && form.last_name && form.email && emailsMatch && (
+                <div className={`rounded-xl p-4 mb-4 ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                  <p className={`text-xs font-medium ${subtext} uppercase tracking-wider mb-3`}>Please confirm your information</p>
+                  <div className="space-y-1 mb-3">
+                    <p className={`text-xs ${text}`}><span className={subtext}>Name:</span> {form.first_name} {form.last_name}</p>
+                    <p className={`text-xs ${text}`}><span className={subtext}>Email:</span> {form.email}</p>
+                    <p className={`text-xs ${text}`}><span className={subtext}>Phone:</span> {form.phone || '—'}</p>
+                    <p className={`text-xs ${text}`}><span className={subtext}>State:</span> {form.state || '—'}</p>
+                    <p className={`text-xs ${text}`}><span className={subtext}>Tax year:</span> {form.fiscal_year}</p>
+                  </div>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={confirmed}
+                      onChange={e => setConfirmed(e.target.checked)}
+                      className="w-4 h-4 rounded accent-blue-600"
+                    />
+                    <span className={`text-xs ${text}`}>I confirm my information is correct</span>
+                  </label>
+                </div>
+              )}
+
               <button
                 onClick={() => goToStep(2)}
-                disabled={!form.first_name || !form.last_name || !form.email}
+                disabled={!canContinue}
                 className="w-full bg-blue-600 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-blue-700 transition disabled:opacity-40"
               >
                 Continue →
@@ -289,17 +332,14 @@ export default function ClientPage() {
             </div>
           )}
 
+          {/* Step 2 - Upload files */}
           {((!isReturning && step === 2) || (isReturning && verified && step === 2)) && (
             <div className={`${card} border rounded-2xl p-6`}>
               <p className={`text-xs font-medium ${subtext} uppercase tracking-wider mb-4`}>Upload your files</p>
               <div
                 {...getRootProps()}
                 className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition mb-4 ${
-                  isDragActive
-                    ? 'border-blue-400 bg-blue-50'
-                    : darkMode
-                    ? 'border-gray-600 hover:bg-gray-700'
-                    : 'border-gray-200 hover:bg-gray-50'
+                  isDragActive ? 'border-blue-400 bg-blue-50' : darkMode ? 'border-gray-600 hover:bg-gray-700' : 'border-gray-200 hover:bg-gray-50'
                 }`}
               >
                 <input {...getInputProps()} />
@@ -353,6 +393,7 @@ export default function ClientPage() {
             </div>
           )}
 
+          {/* Step 3 - Success */}
           {step === 3 && (
             <div className={`${card} border rounded-2xl p-8 text-center`}>
               <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
