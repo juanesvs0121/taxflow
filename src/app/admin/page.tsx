@@ -30,7 +30,6 @@ export default function AdminPage() {
   const [selected, setSelected] = useState<Client | null>(null)
   const [loading, setLoading] = useState(true)
   const [mounted, setMounted] = useState(false)
-  const [darkMode, setDarkMode] = useState(false)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('all')
   const [newNote, setNewNote] = useState('')
@@ -39,13 +38,9 @@ export default function AdminPage() {
   const [notification, setNotification] = useState<string | null>(null)
   const [confirmDeleteClient, setConfirmDeleteClient] = useState<Client | null>(null)
   const [confirmDeleteDoc, setConfirmDeleteDoc] = useState<Document | null>(null)
+  const [panelVisible, setPanelVisible] = useState(false)
 
-  useEffect(() => {
-    const saved = localStorage.getItem('darkMode')
-    if (saved !== null) setDarkMode(saved === 'true')
-    setMounted(true)
-  }, [])
-
+  useEffect(() => { setMounted(true) }, [])
   useEffect(() => { init() }, [])
 
   useEffect(() => {
@@ -60,16 +55,14 @@ export default function AdminPage() {
             .select('first_name, last_name')
             .eq('id', payload.new.client_id)
             .single()
-
           if (client) {
-            setNotification(`📄 ${client.first_name} ${client.last_name} just uploaded a new file`)
+            setNotification(`${client.first_name} ${client.last_name} just uploaded a new file`)
             setTimeout(() => setNotification(null), 5000)
             await fetchClients(profile)
           }
         }
       )
       .subscribe()
-
     return () => { supabase.removeChannel(channel) }
   }, [profile])
 
@@ -77,10 +70,7 @@ export default function AdminPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
     const { data: profileData } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single()
+      .from('profiles').select('*').eq('id', user.id).single()
     if (profileData) {
       setProfile(profileData)
       await fetchClients(profileData)
@@ -106,9 +96,13 @@ export default function AdminPage() {
   }
 
   const selectClient = (client: Client) => {
-    setSelected(client)
-    fetchDocuments(client.id)
-    fetchNotes(client.id)
+    setPanelVisible(false)
+    setTimeout(() => {
+      setSelected(client)
+      fetchDocuments(client.id)
+      fetchNotes(client.id)
+      setPanelVisible(true)
+    }, 150)
   }
 
   const updateStatus = async (status: string) => {
@@ -132,25 +126,21 @@ export default function AdminPage() {
     const { data } = await supabase
       .from('internal_notes')
       .insert([{ client_id: selected.id, author: profile.full_name, content: newNote.trim() }])
-      .select()
-      .single()
+      .select().single()
     if (data) setNotes([...notes, data])
     setNewNote('')
   }
 
   const handleArchiveClick = (e: React.MouseEvent, client: Client) => {
     e.stopPropagation()
-    if (client.status === 'complete') {
-      archiveClient(client)
-    } else {
-      setConfirmArchive(client)
-    }
+    if (client.status === 'complete') archiveClient(client)
+    else setConfirmArchive(client)
   }
 
   const archiveClient = async (client: Client) => {
     await supabase.from('clients').update({ archived: true }).eq('id', client.id)
     setClients(clients.map(c => c.id === client.id ? { ...c, archived: true } : c))
-    if (selected?.id === client.id) setSelected(null)
+    if (selected?.id === client.id) { setSelected(null); setPanelVisible(false) }
     setConfirmArchive(null)
   }
 
@@ -168,7 +158,7 @@ export default function AdminPage() {
     })
     await supabase.from('clients').delete().eq('id', client.id)
     setClients(clients.filter(c => c.id !== client.id))
-    if (selected?.id === client.id) setSelected(null)
+    if (selected?.id === client.id) { setSelected(null); setPanelVisible(false) }
     setConfirmDeleteClient(null)
   }
 
@@ -205,74 +195,73 @@ export default function AdminPage() {
     return matchesSearch && matchesFilter
   })
 
-  const statusColor = (status: string) => {
-    if (status === 'complete') return 'bg-green-100 text-green-700'
-    if (status === 'in_progress') return 'bg-yellow-100 text-yellow-700'
-    return 'bg-red-100 text-red-700'
-  }
-
-  const statusDot = (status: string) => {
-    if (status === 'complete') return 'bg-green-500'
-    if (status === 'in_progress') return 'bg-yellow-500'
-    return 'bg-red-500'
-  }
-
   const statusLabel = (status: string) => {
     if (status === 'complete') return 'Complete'
     if (status === 'in_progress') return 'In progress'
     return 'Pending'
   }
 
-  const initials = (c: Client) => `${c.first_name[0]}${c.last_name[0]}`.toUpperCase()
-  const avatarColor = (i: number) => {
-    const colors = ['bg-blue-100 text-blue-700', 'bg-teal-100 text-teal-700', 'bg-amber-100 text-amber-700', 'bg-rose-100 text-rose-700', 'bg-purple-100 text-purple-700']
-    return colors[i % colors.length]
+  const statusBadge = (status: string) => {
+    if (status === 'complete') return 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+    if (status === 'in_progress') return 'bg-amber-50 text-amber-700 border border-amber-200'
+    return 'bg-red-50 text-red-600 border border-red-200'
   }
 
-  const bg = darkMode ? 'bg-gray-900' : 'bg-gray-50'
-  const sidebar = darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
-  const panel = darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
-  const text = darkMode ? 'text-gray-100' : 'text-gray-800'
-  const subtext = darkMode ? 'text-gray-400' : 'text-gray-500'
-  const inputClass = darkMode ? 'bg-gray-700 border-gray-600 text-gray-100 placeholder-gray-400' : 'bg-white border-gray-200 text-gray-800 placeholder-gray-400'
-  const divider = darkMode ? 'border-gray-700' : 'border-gray-100'
-  const hover = darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'
-  const selectedBg = darkMode ? 'bg-gray-700' : 'bg-blue-50'
+  const statusDot = (status: string) => {
+    if (status === 'complete') return 'bg-emerald-500'
+    if (status === 'in_progress') return 'bg-amber-400'
+    return 'bg-red-400'
+  }
+
+  const avatarColors = [
+    'bg-violet-100 text-violet-600',
+    'bg-sky-100 text-sky-600',
+    'bg-emerald-100 text-emerald-600',
+    'bg-amber-100 text-amber-600',
+    'bg-rose-100 text-rose-600',
+  ]
+
+  const initials = (c: Client) => `${c.first_name[0]}${c.last_name[0]}`.toUpperCase()
 
   if (!mounted || loading) {
     return (
-      <main className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <p className="text-sm text-gray-500">Loading...</p>
+      <main className="min-h-screen bg-[#fafaf8] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-[#1c1c1e] flex items-center justify-center">
+            <span className="text-[#fafaf8] text-xs font-medium">Tf</span>
+          </div>
+          <p className="text-sm text-stone-400">Loading...</p>
+        </div>
       </main>
     )
   }
 
-  return (
-    <main className={`min-h-screen ${bg} transition-colors duration-300`}>
+  const modalBase = "fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50 animate-in fade-in duration-200"
+  const modalCard = "bg-white border border-stone-100 rounded-2xl p-6 max-w-sm w-full mx-4 shadow-xl animate-in zoom-in-95 duration-200"
 
-      {/* Notificación en tiempo real */}
+  return (
+    <main className="min-h-screen bg-[#fafaf8] flex flex-col" style={{ fontFamily: 'var(--font-sans)' }}>
+
+      {/* Notificación */}
       {notification && (
-        <div className="fixed bottom-6 right-6 z-50 bg-gray-900 text-white text-xs px-4 py-3 rounded-xl shadow-lg flex items-center gap-3">
+        <div className="fixed bottom-6 right-6 z-50 bg-[#1c1c1e] text-white text-xs px-4 py-3 rounded-xl flex items-center gap-3 shadow-lg animate-in slide-in-from-bottom-4 duration-300">
+          <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
           <span>{notification}</span>
-          <button onClick={() => setNotification(null)} className="text-gray-400 hover:text-white">✕</button>
+          <button onClick={() => setNotification(null)} className="text-white/40 hover:text-white transition-colors ml-1">✕</button>
         </div>
       )}
 
       {/* Modal archivo */}
       {confirmArchive && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className={`${panel} border rounded-2xl p-6 max-w-sm w-full mx-4`}>
-            <h3 className={`text-sm font-semibold ${text} mb-2`}>Archive this client?</h3>
-            <p className={`text-xs ${subtext} mb-4`}>
-              <strong>{confirmArchive.first_name} {confirmArchive.last_name}</strong> is currently <strong>{statusLabel(confirmArchive.status)}</strong>. Are you sure you want to archive them?
+        <div className={modalBase}>
+          <div className={modalCard}>
+            <h3 className="text-sm font-medium text-stone-800 mb-1">Archive this client?</h3>
+            <p className="text-xs text-stone-400 mb-5">
+              <strong className="text-stone-600">{confirmArchive.first_name} {confirmArchive.last_name}</strong> is currently <strong className="text-stone-600">{statusLabel(confirmArchive.status)}</strong>. Are you sure?
             </p>
             <div className="flex gap-2">
-              <button onClick={() => setConfirmArchive(null)} className={`flex-1 px-4 py-2 text-xs border rounded-lg transition ${darkMode ? 'border-gray-600 text-gray-300 hover:bg-gray-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
-                Cancel
-              </button>
-              <button onClick={() => archiveClient(confirmArchive)} className="flex-1 px-4 py-2 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
-                Yes, archive
-              </button>
+              <button onClick={() => setConfirmArchive(null)} className="flex-1 px-4 py-2 text-xs border border-stone-200 rounded-lg text-stone-500 hover:bg-stone-50 transition-colors">Cancel</button>
+              <button onClick={() => archiveClient(confirmArchive)} className="flex-1 px-4 py-2 text-xs bg-[#1c1c1e] text-white rounded-lg hover:bg-stone-800 transition-colors">Archive</button>
             </div>
           </div>
         </div>
@@ -280,119 +269,86 @@ export default function AdminPage() {
 
       {/* Modal eliminar cliente */}
       {confirmDeleteClient && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className={`${panel} border rounded-2xl p-6 max-w-sm w-full mx-4`}>
-            <h3 className={`text-sm font-semibold ${text} mb-2`}>Delete this client?</h3>
-            <p className={`text-xs ${subtext} mb-4`}>
-              <strong>{confirmDeleteClient.first_name} {confirmDeleteClient.last_name}</strong> and all their documents will be permanently deleted. This cannot be undone.
+        <div className={modalBase}>
+          <div className={modalCard}>
+            <h3 className="text-sm font-medium text-stone-800 mb-1">Delete this client?</h3>
+            <p className="text-xs text-stone-400 mb-5">
+              <strong className="text-stone-600">{confirmDeleteClient.first_name} {confirmDeleteClient.last_name}</strong> and all their documents will be permanently deleted.
             </p>
             <div className="flex gap-2">
-              <button onClick={() => setConfirmDeleteClient(null)} className={`flex-1 px-4 py-2 text-xs border rounded-lg transition ${darkMode ? 'border-gray-600 text-gray-300 hover:bg-gray-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
-                Cancel
-              </button>
-              <button onClick={() => deleteClient(confirmDeleteClient)} className="flex-1 px-4 py-2 text-xs bg-red-500 text-white rounded-lg hover:bg-red-600 transition">
-                Yes, delete
-              </button>
+              <button onClick={() => setConfirmDeleteClient(null)} className="flex-1 px-4 py-2 text-xs border border-stone-200 rounded-lg text-stone-500 hover:bg-stone-50 transition-colors">Cancel</button>
+              <button onClick={() => deleteClient(confirmDeleteClient)} className="flex-1 px-4 py-2 text-xs bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors">Delete</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Modal eliminar documento */}
+      {/* Modal eliminar doc */}
       {confirmDeleteDoc && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className={`${panel} border rounded-2xl p-6 max-w-sm w-full mx-4`}>
-            <h3 className={`text-sm font-semibold ${text} mb-2`}>Delete this document?</h3>
-            <p className={`text-xs ${subtext} mb-4`}>
-              <strong>{confirmDeleteDoc.file_name}</strong> will be permanently deleted. This cannot be undone.
+        <div className={modalBase}>
+          <div className={modalCard}>
+            <h3 className="text-sm font-medium text-stone-800 mb-1">Delete this document?</h3>
+            <p className="text-xs text-stone-400 mb-5">
+              <strong className="text-stone-600">{confirmDeleteDoc.file_name}</strong> will be permanently deleted.
             </p>
             <div className="flex gap-2">
-              <button onClick={() => setConfirmDeleteDoc(null)} className={`flex-1 px-4 py-2 text-xs border rounded-lg transition ${darkMode ? 'border-gray-600 text-gray-300 hover:bg-gray-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
-                Cancel
-              </button>
-              <button onClick={() => deleteDocument(confirmDeleteDoc)} className="flex-1 px-4 py-2 text-xs bg-red-500 text-white rounded-lg hover:bg-red-600 transition">
-                Yes, delete
-              </button>
+              <button onClick={() => setConfirmDeleteDoc(null)} className="flex-1 px-4 py-2 text-xs border border-stone-200 rounded-lg text-stone-500 hover:bg-stone-50 transition-colors">Cancel</button>
+              <button onClick={() => deleteDocument(confirmDeleteDoc)} className="flex-1 px-4 py-2 text-xs bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors">Delete</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Top nav */}
-      <div className={`flex items-center justify-between px-6 py-3 border-b ${darkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'}`}>
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-blue-600" />
-          <span className={`text-sm font-medium ${text}`}>TaxFlow</span>
-          <span className={`text-xs ml-2 px-2 py-0.5 rounded-full ${darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-500'}`}>
-            {profile?.role === 'admin' ? 'Admin' : 'Team Member'}
+      {/* Topbar */}
+      <div className="flex items-center justify-between px-5 py-3 bg-[#fafaf8] border-b border-stone-100">
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-lg bg-[#1c1c1e] flex items-center justify-center">
+            <span className="text-[#fafaf8] text-xs font-medium tracking-tight">Tf</span>
+          </div>
+          <span className="text-sm font-medium text-stone-800 tracking-tight">
+            Tax<span className="text-emerald-500">Flow</span>
+          </span>
+          <span className="text-xs px-2 py-0.5 rounded-md bg-stone-100 text-stone-400">
+            {profile?.role === 'admin' ? 'Admin' : 'Member'}
           </span>
         </div>
-        <div className="flex items-center gap-3">
-          <span className={`text-xs ${subtext}`}>{profile?.full_name}</span>
-          <button
-            onClick={() => router.push('/admin/dashboard')}
-            className={`text-xs px-3 py-1.5 rounded-lg border transition ${darkMode ? 'border-gray-600 text-gray-300 hover:bg-gray-700' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}
-          >
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-stone-400">{profile?.full_name}</span>
+          <button onClick={() => router.push('/admin/dashboard')} className="text-xs px-3 py-1.5 rounded-lg border border-stone-200 bg-white text-stone-500 hover:bg-stone-50 transition-colors">
             Dashboard
           </button>
           {profile?.role === 'admin' && (
-            <button onClick={generateClientLink} className="px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition">
-              + New client link
+            <button onClick={generateClientLink} className="text-xs px-3 py-1.5 rounded-lg bg-[#1c1c1e] text-white hover:bg-stone-800 transition-colors">
+              + New link
             </button>
           )}
-          <button
-            onClick={() => {
-              const next = !darkMode
-              setDarkMode(next)
-              localStorage.setItem('darkMode', String(next))
-            }}
-            className={`p-1.5 rounded-lg border ${darkMode ? 'border-gray-600 text-gray-300 hover:bg-gray-700' : 'border-gray-200 text-gray-500 hover:bg-gray-100'} transition`}
-          >
-            {darkMode ? '☀️' : '🌙'}
-          </button>
-          <button
-            onClick={handleLogout}
-            className={`text-xs px-3 py-1.5 rounded-lg border transition ${darkMode ? 'border-gray-600 text-gray-300 hover:bg-gray-700' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}
-          >
+          <button onClick={handleLogout} className="text-xs px-3 py-1.5 rounded-lg border border-stone-200 bg-white text-stone-400 hover:bg-stone-50 transition-colors">
             Sign out
           </button>
         </div>
       </div>
 
-      <div className="flex h-[calc(100vh-49px)]">
-        {/* Sidebar */}
-        <div className={`w-64 border-r ${sidebar} flex flex-col`}>
-          <div className={`flex border-b ${darkMode ? 'border-gray-700' : 'border-gray-100'}`}>
-            <button
-              onClick={() => { setShowArchive(false); setSelected(null) }}
-              className={`flex-1 py-2.5 text-xs font-medium transition ${!showArchive ? 'text-blue-600 border-b-2 border-blue-600' : subtext}`}
-            >
-              Clients
-            </button>
-            <button
-              onClick={() => { setShowArchive(true); setSelected(null) }}
-              className={`flex-1 py-2.5 text-xs font-medium transition ${showArchive ? 'text-blue-600 border-b-2 border-blue-600' : subtext}`}
-            >
-              Archive {archivedClients.length > 0 && `(${archivedClients.length})`}
-            </button>
-          </div>
+      <div className="flex flex-1 overflow-hidden">
 
-          <div className="p-3">
+        {/* Sidebar */}
+        <div className="w-60 bg-white border-r border-stone-100 flex flex-col">
+          <div className="p-3 pb-2">
+            <p className="text-[10px] font-medium text-stone-300 uppercase tracking-widest mb-2.5">Clients</p>
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Search client..."
-              className={`w-full border rounded-lg px-3 py-1.5 text-xs ${inputClass}`}
+              placeholder="Search by name..."
+              className="w-full bg-[#fafaf8] border-none rounded-lg px-3 py-1.5 text-xs text-stone-600 placeholder-stone-300 outline-none"
             />
           </div>
 
           {!showArchive && (
-            <div className="flex gap-1 px-3 pb-2 flex-wrap">
+            <div className="flex gap-1 px-3 pb-2">
               {['all', 'pending', 'in_progress', 'complete'].map(f => (
                 <button
                   key={f}
                   onClick={() => setFilter(f)}
-                  className={`px-2 py-1 rounded-full text-xs transition ${filter === f ? (darkMode ? 'bg-gray-600 text-gray-100' : 'bg-gray-200 text-gray-700') : `${subtext} ${hover}`}`}
+                  className={`text-[10px] px-2 py-1 rounded-md transition-colors ${filter === f ? 'bg-[#1c1c1e] text-white' : 'text-stone-400 hover:text-stone-600'}`}
                 >
                   {f === 'all' ? 'All' : f === 'in_progress' ? 'Active' : f.charAt(0).toUpperCase() + f.slice(1)}
                 </button>
@@ -400,203 +356,215 @@ export default function AdminPage() {
             </div>
           )}
 
-          <p className={`text-xs ${subtext} px-3 pb-2`}>{filteredClients.length} client{filteredClients.length !== 1 ? 's' : ''}</p>
+          <p className="text-[10px] text-stone-300 px-3 pb-1.5">{filteredClients.length} client{filteredClients.length !== 1 ? 's' : ''}</p>
 
-          <div className="overflow-y-auto flex-1">
+          <div className="flex-1 overflow-y-auto px-2 pb-2">
             {filteredClients.map((client, i) => (
               <div
                 key={client.id}
                 onClick={() => selectClient(client)}
-                className={`group flex items-center gap-3 px-3 py-2.5 cursor-pointer transition ${selected?.id === client.id ? selectedBg : hover}`}
+                className={`group flex items-center gap-2.5 px-2.5 py-2 rounded-xl cursor-pointer transition-all duration-150 mb-0.5 ${selected?.id === client.id ? 'bg-[#1c1c1e]' : 'hover:bg-stone-50'}`}
               >
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0 ${avatarColor(i)}`}>
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-[11px] font-medium flex-shrink-0 transition-colors ${selected?.id === client.id ? 'bg-white/10 text-emerald-400' : avatarColors[i % avatarColors.length]}`}>
                   {initials(client)}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className={`text-sm ${text} truncate`}>{client.first_name} {client.last_name}</p>
-                  <p className={`text-xs ${subtext}`}>{client.assigned_to || 'Unassigned'}</p>
+                  <p className={`text-xs font-medium truncate transition-colors ${selected?.id === client.id ? 'text-white' : 'text-stone-700'}`}>
+                    {client.first_name} {client.last_name}
+                  </p>
+                  <p className={`text-[10px] truncate transition-colors ${selected?.id === client.id ? 'text-white/30' : 'text-stone-400'}`}>
+                    {client.assigned_to || 'Unassigned'} · {documents.length > 0 && selected?.id === client.id ? `${documents.length} docs` : ''}
+                  </p>
                 </div>
                 {showArchive ? (
-                  <button
-                    onClick={(e) => { e.stopPropagation(); unarchiveClient(client) }}
-                    title="Restore to active"
-                    className={`opacity-0 group-hover:opacity-100 transition p-1 rounded ${darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-200'}`}
-                  >
-                    <svg className="w-3.5 h-3.5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                    </svg>
+                  <button onClick={(e) => { e.stopPropagation(); unarchiveClient(client) }} className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-white/10" title="Restore">
+                    <svg className="w-3 h-3 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
                   </button>
                 ) : (
-                  <>
-                    <button
-                      onClick={(e) => handleArchiveClick(e, client)}
-                      title="Archive client"
-                      className={`opacity-0 group-hover:opacity-100 transition p-1 rounded ${darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-200'}`}
-                    >
-                      <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
-                      </svg>
+                  <div className="flex items-center gap-0.5">
+                    <button onClick={(e) => handleArchiveClick(e, client)} className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-stone-100" title="Archive">
+                      <svg className={`w-3 h-3 ${selected?.id === client.id ? 'text-white/40' : 'text-stone-300'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>
                     </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setConfirmDeleteClient(client) }}
-                      title="Delete client"
-                      className={`opacity-0 group-hover:opacity-100 transition p-1 rounded ${darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-200'}`}
-                    >
-                      <svg className="w-3.5 h-3.5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
+                    <button onClick={(e) => { e.stopPropagation(); setConfirmDeleteClient(client) }} className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-red-50" title="Delete">
+                      <svg className="w-3 h-3 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                     </button>
-                  </>
+                    <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ml-0.5 ${statusDot(client.status)}`} />
+                  </div>
                 )}
-                {!showArchive && <div className={`w-2 h-2 rounded-full flex-shrink-0 ${statusDot(client.status)}`} />}
               </div>
             ))}
             {filteredClients.length === 0 && (
-              <p className={`text-xs ${subtext} text-center py-8`}>
-                {showArchive ? 'No archived clients' : 'No clients found'}
-              </p>
+              <p className="text-xs text-stone-300 text-center py-8">{showArchive ? 'No archived clients' : 'No clients found'}</p>
             )}
+          </div>
+
+          <div className="border-t border-stone-100">
+            <div className="flex">
+              <button onClick={() => { setShowArchive(false); setSelected(null); setPanelVisible(false) }} className={`flex-1 py-2.5 text-xs transition-colors border-t-[1.5px] ${!showArchive ? 'text-stone-700 font-medium border-stone-700' : 'text-stone-300 border-transparent hover:text-stone-500'}`}>
+                Active
+              </button>
+              <button onClick={() => { setShowArchive(true); setSelected(null); setPanelVisible(false) }} className={`flex-1 py-2.5 text-xs transition-colors border-t-[1.5px] ${showArchive ? 'text-stone-700 font-medium border-stone-700' : 'text-stone-300 border-transparent hover:text-stone-500'}`}>
+                Archive {archivedClients.length > 0 && `(${archivedClients.length})`}
+              </button>
+            </div>
           </div>
         </div>
 
         {/* Main panel */}
         {selected ? (
-          <div className="flex-1 overflow-y-auto p-6">
-            <div className="flex items-start justify-between mb-6">
-              <div>
-                <h2 className={`text-xl font-semibold ${text}`}>{selected.first_name} {selected.last_name}</h2>
-                <p className={`text-sm ${subtext} mt-0.5`}>{selected.email} · {selected.state} · {selected.marital_status} · {selected.fiscal_year}</p>
-                <p className={`text-xs ${subtext} mt-0.5`}>{selected.phone}</p>
-              </div>
-              <span className={`text-xs font-medium px-3 py-1 rounded-full ${statusColor(selected.status)}`}>
-                {statusLabel(selected.status)}
-              </span>
-            </div>
+          <div className={`flex-1 flex flex-col overflow-hidden transition-all duration-200 ${panelVisible ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-2'}`}>
 
-            <div className="grid grid-cols-4 gap-3 mb-6">
-              {[
-                { label: 'Documents', value: documents.length },
-                { label: 'Tax year', value: selected.fiscal_year },
-                { label: 'Status', value: statusLabel(selected.status) },
-                { label: 'Joined', value: new Date(selected.created_at).toLocaleString().replace(',', ' -') },
-              ].map(s => (
-                <div key={s.label} className={`${panel} border rounded-xl p-4`}>
-                  <p className={`text-xs ${subtext} mb-1`}>{s.label}</p>
-                  <p className={`text-lg font-semibold ${text}`}>{s.value}</p>
+            {/* Hero */}
+            <div className="bg-white border-b border-stone-100 px-6 py-4">
+              <div className="flex items-start justify-between mb-3">
+                <div>
+                  <h2 className="text-xl font-medium text-stone-800 tracking-tight">{selected.first_name} {selected.last_name}</h2>
+                  <p className="text-xs text-stone-400 mt-0.5">{selected.email} · {selected.state} · {selected.marital_status} · {selected.phone}</p>
                 </div>
-              ))}
-              <div className={`${panel} border rounded-xl p-4`}>
-                <p className={`text-xs ${subtext} mb-1`}>Assigned to</p>
-                {profile?.role === 'admin' ? (
-                  <select
-                    value={selected.assigned_to || 'Unassigned'}
-                    onChange={e => updateAssignee(e.target.value)}
-                    className={`w-full text-sm font-medium bg-transparent ${text} border-none outline-none cursor-pointer`}
-                  >
-                    {TEAM_MEMBERS.map(m => <option key={m} value={m}>{m}</option>)}
-                  </select>
-                ) : (
-                  <p className={`text-sm font-semibold ${text}`}>{selected.assigned_to || 'Unassigned'}</p>
-                )}
+                <span className={`text-[10px] font-medium px-2.5 py-1 rounded-md ${statusBadge(selected.status)}`}>
+                  {statusLabel(selected.status)}
+                </span>
               </div>
-            </div>
 
-            {/* Documents */}
-            <div className={`${panel} border rounded-xl p-4 mb-4`}>
-              <p className={`text-xs font-medium ${subtext} uppercase tracking-wider mb-3`}>Documents</p>
-              {documents.length === 0 ? (
-                <p className={`text-sm ${subtext}`}>No documents uploaded yet.</p>
-              ) : (
-                documents.map(doc => (
-                  <div key={doc.id} className={`flex items-center gap-3 py-2.5 border-b ${divider} last:border-0`}>
-                    <div className="w-7 h-7 bg-red-50 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <svg className="w-3.5 h-3.5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-                        <polyline points="14 2 14 8 20 8" strokeWidth={2} />
-                      </svg>
-                    </div>
-                    <span className={`text-sm ${text} flex-1 truncate`}>{doc.file_name}</span>
-                    <span className={`text-xs ${subtext}`}>{new Date(doc.uploaded_at).toLocaleString().replace(',', ' -')}</span>
-                    <button onClick={() => getDownloadUrl(doc.file_path)} className="text-xs text-blue-500 hover:text-blue-700 transition">View</button>
-                    <button onClick={() => setConfirmDeleteDoc(doc)} className="text-xs text-red-400 hover:text-red-600 transition">Delete</button>
+              <div className="grid grid-cols-4 gap-2">
+                {[
+                  { label: 'Documents', value: documents.length, accent: true },
+                  { label: 'Tax year', value: selected.fiscal_year },
+                  { label: 'Joined', value: new Date(selected.created_at).toLocaleString().replace(',', ' ·') },
+                ].map(s => (
+                  <div key={s.label} className="bg-[#fafaf8] border border-stone-100 rounded-xl px-3 py-2.5">
+                    <p className="text-[9px] font-medium text-stone-300 uppercase tracking-widest mb-1">{s.label}</p>
+                    <p className={`text-sm font-medium tracking-tight ${s.accent ? 'text-emerald-600' : 'text-stone-700'}`}>{s.value}</p>
                   </div>
-                ))
-              )}
+                ))}
+                <div className="bg-[#fafaf8] border border-stone-100 rounded-xl px-3 py-2.5">
+                  <p className="text-[9px] font-medium text-stone-300 uppercase tracking-widest mb-1">Assigned to</p>
+                  {profile?.role === 'admin' ? (
+                    <select
+                      value={selected.assigned_to || 'Unassigned'}
+                      onChange={e => updateAssignee(e.target.value)}
+                      className="text-sm font-medium text-stone-700 bg-transparent border-none outline-none cursor-pointer w-full tracking-tight"
+                    >
+                      {TEAM_MEMBERS.map(m => <option key={m}>{m}</option>)}
+                    </select>
+                  ) : (
+                    <p className="text-sm font-medium text-stone-700 tracking-tight">{selected.assigned_to || 'Unassigned'}</p>
+                  )}
+                </div>
+              </div>
             </div>
 
-            {/* Client notes */}
-            {selected.notes && (
-              <div className={`${panel} border rounded-xl p-4 mb-4`}>
-                <p className={`text-xs font-medium ${subtext} uppercase tracking-wider mb-2`}>Client notes</p>
-                <p className={`text-sm ${subtext}`}>{selected.notes}</p>
-              </div>
-            )}
+            {/* Scroll area */}
+            <div className="flex-1 overflow-y-auto px-6 py-4 flex flex-col gap-3">
 
-            {/* Internal notes */}
-            <div className={`${panel} border rounded-xl p-4 mb-4`}>
-              <p className={`text-xs font-medium ${subtext} uppercase tracking-wider mb-3`}>Internal team notes</p>
-              <div className="space-y-3 mb-4 max-h-48 overflow-y-auto">
-                {notes.length === 0 ? (
-                  <p className={`text-sm ${subtext}`}>No internal notes yet.</p>
+              {/* Documents */}
+              <div className="bg-white border border-stone-100 rounded-2xl overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-stone-50">
+                  <p className="text-[10px] font-medium text-stone-300 uppercase tracking-widest">Documents</p>
+                  <span className="text-[10px] text-stone-300 bg-stone-50 px-2 py-0.5 rounded-md">{documents.length} files</span>
+                </div>
+                {documents.length === 0 ? (
+                  <p className="text-xs text-stone-300 px-4 py-4">No documents uploaded yet.</p>
                 ) : (
-                  notes.map(note => (
-                    <div key={note.id} className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className={`text-xs font-medium ${text}`}>{note.author}</span>
-                        <span className={`text-xs ${subtext}`}>{new Date(note.created_at).toLocaleString().replace(',', ' -')}</span>
+                  documents.map((doc, i) => (
+                    <div
+                      key={doc.id}
+                      className={`flex items-center gap-3 px-4 py-2.5 hover:bg-stone-50 transition-colors ${i > 0 ? 'border-t border-stone-50' : ''}`}
+                      style={{ animationDelay: `${i * 50}ms` }}
+                    >
+                      <div className="w-7 h-7 bg-red-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <svg className="w-3.5 h-3.5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                          <polyline points="14 2 14 8 20 8" strokeWidth={1.5} />
+                        </svg>
                       </div>
-                      <p className={`text-sm ${subtext}`}>{note.content}</p>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-stone-600 truncate">{doc.file_name}</p>
+                        <p className="text-[10px] text-stone-300 mt-0.5">{new Date(doc.uploaded_at).toLocaleString().replace(',', ' ·')}</p>
+                      </div>
+                      <button onClick={() => getDownloadUrl(doc.file_path)} className="text-[10px] text-violet-500 hover:text-violet-700 transition-colors">View</button>
+                      <button onClick={() => setConfirmDeleteDoc(doc)} className="text-[10px] text-red-400 hover:text-red-600 transition-colors ml-2">Delete</button>
                     </div>
                   ))
                 )}
               </div>
-              <div className="flex gap-2">
-                <input
-                  value={newNote}
-                  onChange={e => setNewNote(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && addNote()}
-                  placeholder="Write an internal note..."
-                  className={`flex-1 border rounded-lg px-3 py-1.5 text-xs ${inputClass}`}
-                />
-                <button
-                  onClick={addNote}
-                  disabled={!newNote.trim()}
-                  className="px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition disabled:opacity-40"
-                >
-                  Add
-                </button>
+
+              {/* Client notes */}
+              {selected.notes && (
+                <div className="bg-white border border-stone-100 rounded-2xl px-4 py-3">
+                  <p className="text-[10px] font-medium text-stone-300 uppercase tracking-widest mb-2">Client notes</p>
+                  <p className="text-xs text-stone-500 leading-relaxed">{selected.notes}</p>
+                </div>
+              )}
+
+              {/* Internal notes */}
+              <div className="bg-white border border-stone-100 rounded-2xl overflow-hidden">
+                <div className="px-4 py-3 border-b border-stone-50">
+                  <p className="text-[10px] font-medium text-stone-300 uppercase tracking-widest">Internal notes</p>
+                </div>
+                <div className="max-h-44 overflow-y-auto">
+                  {notes.length === 0 ? (
+                    <p className="text-xs text-stone-300 px-4 py-4">No notes yet.</p>
+                  ) : (
+                    notes.map((note, i) => (
+                      <div
+                        key={note.id}
+                        className="mx-4 my-2 bg-[#fafaf8] rounded-xl px-3 py-2.5 border-l-2 border-emerald-400"
+                        style={{ animationDelay: `${i * 60}ms` }}
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-[10px] font-medium text-stone-500">{note.author}</span>
+                          <span className="text-[10px] text-stone-300">{new Date(note.created_at).toLocaleDateString()}</span>
+                        </div>
+                        <p className="text-xs text-stone-500 leading-relaxed">{note.content}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+                <div className="flex gap-2 px-4 py-3 border-t border-stone-50">
+                  <input
+                    value={newNote}
+                    onChange={e => setNewNote(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && addNote()}
+                    placeholder="Leave a note for the team..."
+                    className="flex-1 bg-[#fafaf8] border-none rounded-lg px-3 py-2 text-xs text-stone-600 placeholder-stone-300 outline-none"
+                  />
+                  <button
+                    onClick={addNote}
+                    disabled={!newNote.trim()}
+                    className="px-3 py-2 bg-[#1c1c1e] text-white text-xs rounded-lg hover:bg-stone-800 transition-colors disabled:opacity-40"
+                  >
+                    Add
+                  </button>
+                </div>
               </div>
             </div>
 
-            {/* Actions */}
+            {/* Footer actions */}
             {!showArchive && (
-              <div className="flex gap-2">
-                <button
-                  onClick={() => updateStatus('pending')}
-                  className={`px-4 py-2 text-xs border rounded-lg transition ${darkMode ? 'border-gray-600 text-gray-300 hover:bg-gray-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
-                >
+              <div className="bg-white border-t border-stone-100 px-6 py-3 flex items-center gap-2">
+                <button onClick={() => updateStatus('pending')} className="px-4 py-2 text-xs border border-stone-200 rounded-lg text-stone-500 hover:bg-stone-50 transition-colors">
                   Mark as pending
                 </button>
-                <button
-                  onClick={() => updateStatus('in_progress')}
-                  className={`px-4 py-2 text-xs border rounded-lg transition ${darkMode ? 'border-gray-600 text-gray-300 hover:bg-gray-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
-                >
+                <button onClick={() => updateStatus('in_progress')} className="px-4 py-2 text-xs border border-emerald-200 bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 transition-colors">
                   Mark as active
                 </button>
-                <button
-                  onClick={() => updateStatus('complete')}
-                  className="px-4 py-2 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-                >
-                  Mark as complete
+                <button onClick={() => updateStatus('complete')} className="px-4 py-2 text-xs bg-[#1c1c1e] text-white rounded-lg hover:bg-stone-800 transition-colors ml-auto">
+                  Mark as complete ✓
                 </button>
               </div>
             )}
           </div>
         ) : (
           <div className="flex-1 flex items-center justify-center">
-            <p className={`text-sm ${subtext}`}>
-              {showArchive ? 'Select an archived client to view their details' : 'Select a client to view their details'}
-            </p>
+            <div className="text-center">
+              <div className="w-10 h-10 rounded-xl bg-stone-100 flex items-center justify-center mx-auto mb-3">
+                <svg className="w-5 h-5 text-stone-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              </div>
+              <p className="text-xs text-stone-300">{showArchive ? 'Select an archived client' : 'Select a client to get started'}</p>
+            </div>
           </div>
         )}
       </div>
