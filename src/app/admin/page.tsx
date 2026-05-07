@@ -519,10 +519,14 @@ export default function AdminPage() {
                     notes.map((note, i) => (
                       <div
                         key={note.id}
-                        
-                        className="mx-4 my-2 bg-[#fafaf8] rounded-xl px-3 py-2.5 border-l-2 border-stone-400"
+                        className={`mx-4 my-2 bg-[#fafaf8] rounded-xl px-3 py-2.5 border-l-2 transition-colors duration-500 ${
+                          selected.status === 'complete' ? 'border-emerald-500' : 
+                          selected.status === 'in_progress' ? 'border-blue-500' : 
+                          'border-amber-400'
+                        }`}
                         style={{ animationDelay: `${i * 60}ms` }}
                       >
+                      
                         <div className="flex items-center gap-2 mb-1">
                           <span className="text-[10px] font-medium text-stone-600">{note.author}</span>
                           <span className="text-[10px] text-stone-500">{new Date(note.created_at).toLocaleDateString('en-US')}</span>
