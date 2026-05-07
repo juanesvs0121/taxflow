@@ -423,7 +423,11 @@ export default function AdminPage() {
           <div className={`flex-1 flex flex-col overflow-hidden transition-all duration-200 ${panelVisible ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-2'}`}>
 
             {/* Hero */}
-            <div className="bg-white border-b border-stone-100 px-6 py-4">
+<div className={`bg-white border-b border-stone-100 px-6 py-4 border-l-4 transition-colors duration-500 ${
+  selected.status === 'complete' ? 'border-emerald-500' : 
+  selected.status === 'in_progress' ? 'border-blue-500' : 
+  'border-amber-400'
+}`}>
               <div className="flex items-start justify-between mb-3">
                 <div>
                   {/* Agregado "capitalize" aquí */}
@@ -500,8 +504,12 @@ export default function AdminPage() {
               </div>
 
               {/* Client notes */}
-              {selected.notes && (
-                <div className="bg-white border border-stone-100 rounded-2xl px-4 py-3">
+{selected.notes && (
+  <div className={`bg-white border border-stone-100 rounded-2xl px-4 py-3 border-l-2 transition-colors duration-500 ${
+    selected.status === 'complete' ? 'border-emerald-500' : 
+    selected.status === 'in_progress' ? 'border-blue-500' : 
+    'border-amber-400'
+  }`}>
                   <p className="text-[10px] font-medium text-stone-500 uppercase tracking-widest mb-2">Client notes</p>
                   <p className="text-xs text-stone-600 leading-relaxed">{selected.notes}</p>
                 </div>
