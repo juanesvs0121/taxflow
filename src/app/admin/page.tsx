@@ -201,7 +201,6 @@ export default function AdminPage() {
     return 'Pending'
   }
 
-  // Modificado: Verde para completado, Azul para activo, Amarillo para pendiente
   const statusBadge = (status: string) => {
     if (status === 'complete') return 'bg-emerald-50 text-emerald-700 border border-emerald-200'
     if (status === 'in_progress') return 'bg-blue-50 text-blue-700 border border-blue-200'
@@ -224,7 +223,6 @@ export default function AdminPage() {
 
   const initials = (c: Client) => `${c.first_name[0]}${c.last_name[0]}`.toUpperCase()
 
-  // Helper para formatear fechas al estilo US
   const formatDateUS = (dateString: string) => {
     const d = new Date(dateString);
     return `${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} · ${d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
@@ -237,7 +235,7 @@ export default function AdminPage() {
           <div className="w-8 h-8 rounded-lg bg-[#1c1c1e] flex items-center justify-center">
             <span className="text-[#fafaf8] text-xs font-medium">Tf</span>
           </div>
-          <p className="text-sm text-stone-500">Loading...</p> {/* Oscurecido */}
+          <p className="text-sm text-stone-500">Loading...</p>
         </div>
       </main>
     )
@@ -263,7 +261,7 @@ export default function AdminPage() {
         <div className={modalBase}>
           <div className={modalCard}>
             <h3 className="text-sm font-medium text-stone-800 mb-1">Archive this client?</h3>
-            <p className="text-xs text-stone-500 mb-5"> {/* Oscurecido */}
+            <p className="text-xs text-stone-500 mb-5">
               <strong className="text-stone-700 capitalize">{confirmArchive.first_name} {confirmArchive.last_name}</strong> is currently <strong className="text-stone-700">{statusLabel(confirmArchive.status)}</strong>. Are you sure?
             </p>
             <div className="flex gap-2">
@@ -376,7 +374,6 @@ export default function AdminPage() {
                   {initials(client)}
                 </div>
                 <div className="flex-1 min-w-0">
-                  {/* Agregado "capitalize" aquí */}
                   <p className={`text-xs font-medium truncate capitalize transition-colors ${selected?.id === client.id ? 'text-white' : 'text-stone-700'}`}>
                     {client.first_name} {client.last_name}
                   </p>
@@ -422,15 +419,14 @@ export default function AdminPage() {
         {selected ? (
           <div className={`flex-1 flex flex-col overflow-hidden transition-all duration-200 ${panelVisible ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-2'}`}>
 
-            {/* Hero */}
-<div className={`bg-white border-b border-stone-100 px-6 py-4 border-l-4 transition-colors duration-500 ${
-  selected.status === 'complete' ? 'border-emerald-500' : 
-  selected.status === 'in_progress' ? 'border-blue-500' : 
-  'border-amber-400'
-}`}>
+            {/* Hero (Corregido con border-l- específico) */}
+            <div className={`bg-white border-b border-stone-100 px-6 py-4 border-l-4 transition-colors duration-500 ${
+              selected.status === 'complete' ? 'border-l-emerald-500' : 
+              selected.status === 'in_progress' ? 'border-l-blue-500' : 
+              'border-l-amber-400'
+            }`}>
               <div className="flex items-start justify-between mb-3">
                 <div>
-                  {/* Agregado "capitalize" aquí */}
                   <h2 className="text-xl font-medium text-stone-800 tracking-tight capitalize">{selected.first_name} {selected.last_name}</h2>
                   <p className="text-xs text-stone-500 mt-0.5">{selected.email} · {selected.state} · {selected.marital_status} · {selected.phone}</p>
                 </div>
@@ -443,7 +439,7 @@ export default function AdminPage() {
                 {[
                   { label: 'Documents', value: documents.length, accent: true },
                   { label: 'Tax year', value: selected.fiscal_year },
-                  { label: 'Joined', value: formatDateUS(selected.created_at) }, // Usando formateador de US
+                  { label: 'Joined', value: formatDateUS(selected.created_at) },
                 ].map(s => (
                   <div key={s.label} className="bg-[#fafaf8] border border-stone-100 rounded-xl px-3 py-2.5">
                     <p className="text-[9px] font-medium text-stone-500 uppercase tracking-widest mb-1">{s.label}</p>
@@ -474,7 +470,6 @@ export default function AdminPage() {
               <div className="bg-white border border-stone-100 rounded-2xl overflow-hidden">
                 <div className="flex items-center justify-between px-4 py-3 border-b border-stone-50">
                   <p className="text-[10px] font-medium text-stone-500 uppercase tracking-widest">Documents</p>
-                  {/* Corregido el plural y el color del fondo/texto */}
                   <span className="text-[10px] text-stone-500 bg-stone-100 px-2 py-0.5 rounded-md">{documents.length} file{documents.length !== 1 ? 's' : ''}</span>
                 </div>
                 {documents.length === 0 ? (
@@ -503,19 +498,19 @@ export default function AdminPage() {
                 )}
               </div>
 
-              {/* Client notes */}
-{selected.notes && (
-  <div className={`bg-white border border-stone-100 rounded-2xl px-4 py-3 border-l-2 transition-colors duration-500 ${
-    selected.status === 'complete' ? 'border-emerald-500' : 
-    selected.status === 'in_progress' ? 'border-blue-500' : 
-    'border-amber-400'
-  }`}>
+              {/* Client notes (Corregido con border-l- específico) */}
+              {selected.notes && (
+                <div className={`bg-white border border-stone-100 rounded-2xl px-4 py-3 border-l-2 transition-colors duration-500 ${
+                  selected.status === 'complete' ? 'border-l-emerald-500' : 
+                  selected.status === 'in_progress' ? 'border-l-blue-500' : 
+                  'border-l-amber-400'
+                }`}>
                   <p className="text-[10px] font-medium text-stone-500 uppercase tracking-widest mb-2">Client notes</p>
                   <p className="text-xs text-stone-600 leading-relaxed">{selected.notes}</p>
                 </div>
               )}
 
-              {/* Internal notes */}
+              {/* Internal notes (Corregido con border-l- específico) */}
               <div className="bg-white border border-stone-100 rounded-2xl overflow-hidden">
                 <div className="px-4 py-3 border-b border-stone-50">
                   <p className="text-[10px] font-medium text-stone-500 uppercase tracking-widest">Internal notes</p>
@@ -528,13 +523,12 @@ export default function AdminPage() {
                       <div
                         key={note.id}
                         className={`mx-4 my-2 bg-[#fafaf8] rounded-xl px-3 py-2.5 border-l-2 transition-colors duration-500 ${
-                          selected.status === 'complete' ? 'border-emerald-500' : 
-                          selected.status === 'in_progress' ? 'border-blue-500' : 
-                          'border-amber-400'
+                          selected.status === 'complete' ? 'border-l-emerald-500' : 
+                          selected.status === 'in_progress' ? 'border-l-blue-500' : 
+                          'border-l-amber-400'
                         }`}
                         style={{ animationDelay: `${i * 60}ms` }}
                       >
-                      
                         <div className="flex items-center gap-2 mb-1">
                           <span className="text-[10px] font-medium text-stone-600">{note.author}</span>
                           <span className="text-[10px] text-stone-500">{new Date(note.created_at).toLocaleDateString('en-US')}</span>
