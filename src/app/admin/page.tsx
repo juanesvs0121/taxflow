@@ -390,31 +390,27 @@ export default function AdminPage() {
                 key={client.id}
                 onClick={() => selectClient(client)}
                 className={`group flex items-center gap-2.5 px-2.5 py-2 rounded-xl cursor-pointer transition-all duration-150 mb-0.5 border-l-2 ${
-                  selected?.id === client.id
-                    ? `bg-[#1c1c1e] ${
-                        client.status === 'complete'    ? 'border-l-emerald-500' :
-                        client.status === 'in_progress' ? 'border-l-blue-500' :
-                                                          'border-l-amber-400'
-                      }`
-                    : 'hover:bg-stone-50 border-l-transparent'
-                }`}
+  selected?.id === client.id
+    ? client.status === 'complete'    ? 'bg-emerald-50 border-l-emerald-500' :
+      client.status === 'in_progress' ? 'bg-blue-50 border-l-blue-500' :
+                                        'bg-amber-50 border-l-amber-400': 
+                                        'hover:bg-stone-50 border-l-transparent'
+}`}
               >
                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-[11px] font-medium flex-shrink-0 transition-colors ${
-                  selected?.id === client.id
-                    ? 'bg-white/10 text-emerald-400'
-                    : avatarColors[i % avatarColors.length]
+                  selected?.id === client.id ? avatarColors[i % avatarColors.length] : avatarColors[i % avatarColors.length]
                 }`}>
                   {initials(client)}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className={`text-xs font-medium truncate capitalize transition-colors ${
-                    selected?.id === client.id ? 'text-white' : 'text-stone-700'
-                  }`}>
+                 <p className={`text-xs font-medium truncate capitalize transition-colors ${
+  selected?.id === client.id ? 'text-stone-800' : 'text-stone-700'
+}`}>
                     {client.first_name} {client.last_name}
                   </p>
                   <p className={`text-[10px] truncate transition-colors ${
-                    selected?.id === client.id ? 'text-white/30' : 'text-stone-500'
-                  }`}>
+  selected?.id === client.id ? 'text-stone-500' : 'text-stone-500'
+}`}>
                     {client.assigned_to || 'Unassigned'} · {documents.length > 0 && selected?.id === client.id ? `${documents.length} docs` : ''}
                   </p>
                 </div>
