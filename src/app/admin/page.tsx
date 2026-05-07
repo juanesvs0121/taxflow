@@ -201,16 +201,17 @@ export default function AdminPage() {
     return 'Pending'
   }
 
+  // Modificado: Verde para completado, Azul para activo, Amarillo para pendiente
   const statusBadge = (status: string) => {
     if (status === 'complete') return 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-    if (status === 'in_progress') return 'bg-amber-50 text-amber-700 border border-amber-200'
-    return 'bg-red-50 text-red-600 border border-red-200'
+    if (status === 'in_progress') return 'bg-blue-50 text-blue-700 border border-blue-200'
+    return 'bg-amber-50 text-amber-700 border border-amber-200'
   }
 
   const statusDot = (status: string) => {
     if (status === 'complete') return 'bg-emerald-500'
-    if (status === 'in_progress') return 'bg-amber-400'
-    return 'bg-red-400'
+    if (status === 'in_progress') return 'bg-blue-500'
+    return 'bg-amber-400'
   }
 
   const avatarColors = [
@@ -223,6 +224,12 @@ export default function AdminPage() {
 
   const initials = (c: Client) => `${c.first_name[0]}${c.last_name[0]}`.toUpperCase()
 
+  // Helper para formatear fechas al estilo US
+  const formatDateUS = (dateString: string) => {
+    const d = new Date(dateString);
+    return `${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} · ${d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
+  }
+
   if (!mounted || loading) {
     return (
       <main className="min-h-screen bg-[#fafaf8] flex items-center justify-center">
@@ -230,7 +237,7 @@ export default function AdminPage() {
           <div className="w-8 h-8 rounded-lg bg-[#1c1c1e] flex items-center justify-center">
             <span className="text-[#fafaf8] text-xs font-medium">Tf</span>
           </div>
-          <p className="text-sm text-stone-400">Loading...</p>
+          <p className="text-sm text-stone-500">Loading...</p> {/* Oscurecido */}
         </div>
       </main>
     )
@@ -256,11 +263,11 @@ export default function AdminPage() {
         <div className={modalBase}>
           <div className={modalCard}>
             <h3 className="text-sm font-medium text-stone-800 mb-1">Archive this client?</h3>
-            <p className="text-xs text-stone-400 mb-5">
-              <strong className="text-stone-600">{confirmArchive.first_name} {confirmArchive.last_name}</strong> is currently <strong className="text-stone-600">{statusLabel(confirmArchive.status)}</strong>. Are you sure?
+            <p className="text-xs text-stone-500 mb-5"> {/* Oscurecido */}
+              <strong className="text-stone-700 capitalize">{confirmArchive.first_name} {confirmArchive.last_name}</strong> is currently <strong className="text-stone-700">{statusLabel(confirmArchive.status)}</strong>. Are you sure?
             </p>
             <div className="flex gap-2">
-              <button onClick={() => setConfirmArchive(null)} className="flex-1 px-4 py-2 text-xs border border-stone-200 rounded-lg text-stone-500 hover:bg-stone-50 transition-colors">Cancel</button>
+              <button onClick={() => setConfirmArchive(null)} className="flex-1 px-4 py-2 text-xs border border-stone-200 rounded-lg text-stone-600 hover:bg-stone-50 transition-colors">Cancel</button>
               <button onClick={() => archiveClient(confirmArchive)} className="flex-1 px-4 py-2 text-xs bg-[#1c1c1e] text-white rounded-lg hover:bg-stone-800 transition-colors">Archive</button>
             </div>
           </div>
@@ -272,11 +279,11 @@ export default function AdminPage() {
         <div className={modalBase}>
           <div className={modalCard}>
             <h3 className="text-sm font-medium text-stone-800 mb-1">Delete this client?</h3>
-            <p className="text-xs text-stone-400 mb-5">
-              <strong className="text-stone-600">{confirmDeleteClient.first_name} {confirmDeleteClient.last_name}</strong> and all their documents will be permanently deleted.
+            <p className="text-xs text-stone-500 mb-5">
+              <strong className="text-stone-700 capitalize">{confirmDeleteClient.first_name} {confirmDeleteClient.last_name}</strong> and all their documents will be permanently deleted.
             </p>
             <div className="flex gap-2">
-              <button onClick={() => setConfirmDeleteClient(null)} className="flex-1 px-4 py-2 text-xs border border-stone-200 rounded-lg text-stone-500 hover:bg-stone-50 transition-colors">Cancel</button>
+              <button onClick={() => setConfirmDeleteClient(null)} className="flex-1 px-4 py-2 text-xs border border-stone-200 rounded-lg text-stone-600 hover:bg-stone-50 transition-colors">Cancel</button>
               <button onClick={() => deleteClient(confirmDeleteClient)} className="flex-1 px-4 py-2 text-xs bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors">Delete</button>
             </div>
           </div>
@@ -288,11 +295,11 @@ export default function AdminPage() {
         <div className={modalBase}>
           <div className={modalCard}>
             <h3 className="text-sm font-medium text-stone-800 mb-1">Delete this document?</h3>
-            <p className="text-xs text-stone-400 mb-5">
-              <strong className="text-stone-600">{confirmDeleteDoc.file_name}</strong> will be permanently deleted.
+            <p className="text-xs text-stone-500 mb-5">
+              <strong className="text-stone-700">{confirmDeleteDoc.file_name}</strong> will be permanently deleted.
             </p>
             <div className="flex gap-2">
-              <button onClick={() => setConfirmDeleteDoc(null)} className="flex-1 px-4 py-2 text-xs border border-stone-200 rounded-lg text-stone-500 hover:bg-stone-50 transition-colors">Cancel</button>
+              <button onClick={() => setConfirmDeleteDoc(null)} className="flex-1 px-4 py-2 text-xs border border-stone-200 rounded-lg text-stone-600 hover:bg-stone-50 transition-colors">Cancel</button>
               <button onClick={() => deleteDocument(confirmDeleteDoc)} className="flex-1 px-4 py-2 text-xs bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors">Delete</button>
             </div>
           </div>
@@ -308,13 +315,13 @@ export default function AdminPage() {
           <span className="text-sm font-medium text-stone-800 tracking-tight">
             Tax<span className="text-emerald-500">Flow</span>
           </span>
-          <span className="text-xs px-2 py-0.5 rounded-md bg-stone-100 text-stone-400">
+          <span className="text-xs px-2 py-0.5 rounded-md bg-stone-100 text-stone-500">
             {profile?.role === 'admin' ? 'Admin' : 'Member'}
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-stone-400">{profile?.full_name}</span>
-          <button onClick={() => router.push('/admin/dashboard')} className="text-xs px-3 py-1.5 rounded-lg border border-stone-200 bg-white text-stone-500 hover:bg-stone-50 transition-colors">
+          <span className="text-xs text-stone-500">{profile?.full_name}</span>
+          <button onClick={() => router.push('/admin/dashboard')} className="text-xs px-3 py-1.5 rounded-lg border border-stone-200 bg-white text-stone-600 hover:bg-stone-50 transition-colors">
             Dashboard
           </button>
           {profile?.role === 'admin' && (
@@ -322,7 +329,7 @@ export default function AdminPage() {
               + New link
             </button>
           )}
-          <button onClick={handleLogout} className="text-xs px-3 py-1.5 rounded-lg border border-stone-200 bg-white text-stone-400 hover:bg-stone-50 transition-colors">
+          <button onClick={handleLogout} className="text-xs px-3 py-1.5 rounded-lg border border-stone-200 bg-white text-stone-500 hover:bg-stone-50 transition-colors">
             Sign out
           </button>
         </div>
@@ -333,12 +340,12 @@ export default function AdminPage() {
         {/* Sidebar */}
         <div className="w-60 bg-white border-r border-stone-100 flex flex-col">
           <div className="p-3 pb-2">
-            <p className="text-[10px] font-medium text-stone-300 uppercase tracking-widest mb-2.5">Clients</p>
+            <p className="text-[10px] font-medium text-stone-400 uppercase tracking-widest mb-2.5">Clients</p>
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Search by name..."
-              className="w-full bg-[#fafaf8] border-none rounded-lg px-3 py-1.5 text-xs text-stone-600 placeholder-stone-300 outline-none"
+              className="w-full bg-[#fafaf8] border-none rounded-lg px-3 py-1.5 text-xs text-stone-600 placeholder-stone-400 outline-none"
             />
           </div>
 
@@ -348,7 +355,7 @@ export default function AdminPage() {
                 <button
                   key={f}
                   onClick={() => setFilter(f)}
-                  className={`text-[10px] px-2 py-1 rounded-md transition-colors ${filter === f ? 'bg-[#1c1c1e] text-white' : 'text-stone-400 hover:text-stone-600'}`}
+                  className={`text-[10px] px-2 py-1 rounded-md transition-colors ${filter === f ? 'bg-[#1c1c1e] text-white' : 'text-stone-500 hover:text-stone-700'}`}
                 >
                   {f === 'all' ? 'All' : f === 'in_progress' ? 'Active' : f.charAt(0).toUpperCase() + f.slice(1)}
                 </button>
@@ -356,7 +363,7 @@ export default function AdminPage() {
             </div>
           )}
 
-          <p className="text-[10px] text-stone-300 px-3 pb-1.5">{filteredClients.length} client{filteredClients.length !== 1 ? 's' : ''}</p>
+          <p className="text-[10px] text-stone-500 px-3 pb-1.5">{filteredClients.length} client{filteredClients.length !== 1 ? 's' : ''}</p>
 
           <div className="flex-1 overflow-y-auto px-2 pb-2">
             {filteredClients.map((client, i) => (
@@ -369,10 +376,11 @@ export default function AdminPage() {
                   {initials(client)}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className={`text-xs font-medium truncate transition-colors ${selected?.id === client.id ? 'text-white' : 'text-stone-700'}`}>
+                  {/* Agregado "capitalize" aquí */}
+                  <p className={`text-xs font-medium truncate capitalize transition-colors ${selected?.id === client.id ? 'text-white' : 'text-stone-700'}`}>
                     {client.first_name} {client.last_name}
                   </p>
-                  <p className={`text-[10px] truncate transition-colors ${selected?.id === client.id ? 'text-white/30' : 'text-stone-400'}`}>
+                  <p className={`text-[10px] truncate transition-colors ${selected?.id === client.id ? 'text-white/30' : 'text-stone-500'}`}>
                     {client.assigned_to || 'Unassigned'} · {documents.length > 0 && selected?.id === client.id ? `${documents.length} docs` : ''}
                   </p>
                 </div>
@@ -383,7 +391,7 @@ export default function AdminPage() {
                 ) : (
                   <div className="flex items-center gap-0.5">
                     <button onClick={(e) => handleArchiveClick(e, client)} className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-stone-100" title="Archive">
-                      <svg className={`w-3 h-3 ${selected?.id === client.id ? 'text-white/40' : 'text-stone-300'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>
+                      <svg className={`w-3 h-3 ${selected?.id === client.id ? 'text-white/40' : 'text-stone-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>
                     </button>
                     <button onClick={(e) => { e.stopPropagation(); setConfirmDeleteClient(client) }} className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-red-50" title="Delete">
                       <svg className="w-3 h-3 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
@@ -394,16 +402,16 @@ export default function AdminPage() {
               </div>
             ))}
             {filteredClients.length === 0 && (
-              <p className="text-xs text-stone-300 text-center py-8">{showArchive ? 'No archived clients' : 'No clients found'}</p>
+              <p className="text-xs text-stone-500 text-center py-8">{showArchive ? 'No archived clients' : 'No clients found'}</p>
             )}
           </div>
 
           <div className="border-t border-stone-100">
             <div className="flex">
-              <button onClick={() => { setShowArchive(false); setSelected(null); setPanelVisible(false) }} className={`flex-1 py-2.5 text-xs transition-colors border-t-[1.5px] ${!showArchive ? 'text-stone-700 font-medium border-stone-700' : 'text-stone-300 border-transparent hover:text-stone-500'}`}>
+              <button onClick={() => { setShowArchive(false); setSelected(null); setPanelVisible(false) }} className={`flex-1 py-2.5 text-xs transition-colors border-t-[1.5px] ${!showArchive ? 'text-stone-700 font-medium border-stone-700' : 'text-stone-400 border-transparent hover:text-stone-600'}`}>
                 Active
               </button>
-              <button onClick={() => { setShowArchive(true); setSelected(null); setPanelVisible(false) }} className={`flex-1 py-2.5 text-xs transition-colors border-t-[1.5px] ${showArchive ? 'text-stone-700 font-medium border-stone-700' : 'text-stone-300 border-transparent hover:text-stone-500'}`}>
+              <button onClick={() => { setShowArchive(true); setSelected(null); setPanelVisible(false) }} className={`flex-1 py-2.5 text-xs transition-colors border-t-[1.5px] ${showArchive ? 'text-stone-700 font-medium border-stone-700' : 'text-stone-400 border-transparent hover:text-stone-600'}`}>
                 Archive {archivedClients.length > 0 && `(${archivedClients.length})`}
               </button>
             </div>
@@ -418,8 +426,9 @@ export default function AdminPage() {
             <div className="bg-white border-b border-stone-100 px-6 py-4">
               <div className="flex items-start justify-between mb-3">
                 <div>
-                  <h2 className="text-xl font-medium text-stone-800 tracking-tight">{selected.first_name} {selected.last_name}</h2>
-                  <p className="text-xs text-stone-400 mt-0.5">{selected.email} · {selected.state} · {selected.marital_status} · {selected.phone}</p>
+                  {/* Agregado "capitalize" aquí */}
+                  <h2 className="text-xl font-medium text-stone-800 tracking-tight capitalize">{selected.first_name} {selected.last_name}</h2>
+                  <p className="text-xs text-stone-500 mt-0.5">{selected.email} · {selected.state} · {selected.marital_status} · {selected.phone}</p>
                 </div>
                 <span className={`text-[10px] font-medium px-2.5 py-1 rounded-md ${statusBadge(selected.status)}`}>
                   {statusLabel(selected.status)}
@@ -430,15 +439,15 @@ export default function AdminPage() {
                 {[
                   { label: 'Documents', value: documents.length, accent: true },
                   { label: 'Tax year', value: selected.fiscal_year },
-                  { label: 'Joined', value: new Date(selected.created_at).toLocaleString().replace(',', ' ·') },
+                  { label: 'Joined', value: formatDateUS(selected.created_at) }, // Usando formateador de US
                 ].map(s => (
                   <div key={s.label} className="bg-[#fafaf8] border border-stone-100 rounded-xl px-3 py-2.5">
-                    <p className="text-[9px] font-medium text-stone-300 uppercase tracking-widest mb-1">{s.label}</p>
+                    <p className="text-[9px] font-medium text-stone-500 uppercase tracking-widest mb-1">{s.label}</p>
                     <p className={`text-sm font-medium tracking-tight ${s.accent ? 'text-emerald-600' : 'text-stone-700'}`}>{s.value}</p>
                   </div>
                 ))}
                 <div className="bg-[#fafaf8] border border-stone-100 rounded-xl px-3 py-2.5">
-                  <p className="text-[9px] font-medium text-stone-300 uppercase tracking-widest mb-1">Assigned to</p>
+                  <p className="text-[9px] font-medium text-stone-500 uppercase tracking-widest mb-1">Assigned to</p>
                   {profile?.role === 'admin' ? (
                     <select
                       value={selected.assigned_to || 'Unassigned'}
@@ -460,11 +469,12 @@ export default function AdminPage() {
               {/* Documents */}
               <div className="bg-white border border-stone-100 rounded-2xl overflow-hidden">
                 <div className="flex items-center justify-between px-4 py-3 border-b border-stone-50">
-                  <p className="text-[10px] font-medium text-stone-300 uppercase tracking-widest">Documents</p>
-                  <span className="text-[10px] text-stone-300 bg-stone-50 px-2 py-0.5 rounded-md">{documents.length} files</span>
+                  <p className="text-[10px] font-medium text-stone-500 uppercase tracking-widest">Documents</p>
+                  {/* Corregido el plural y el color del fondo/texto */}
+                  <span className="text-[10px] text-stone-500 bg-stone-100 px-2 py-0.5 rounded-md">{documents.length} file{documents.length !== 1 ? 's' : ''}</span>
                 </div>
                 {documents.length === 0 ? (
-                  <p className="text-xs text-stone-300 px-4 py-4">No documents uploaded yet.</p>
+                  <p className="text-xs text-stone-500 px-4 py-4">No documents uploaded yet.</p>
                 ) : (
                   documents.map((doc, i) => (
                     <div
@@ -480,7 +490,7 @@ export default function AdminPage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-xs text-stone-600 truncate">{doc.file_name}</p>
-                        <p className="text-[10px] text-stone-300 mt-0.5">{new Date(doc.uploaded_at).toLocaleString().replace(',', ' ·')}</p>
+                        <p className="text-[10px] text-stone-500 mt-0.5">{formatDateUS(doc.uploaded_at)}</p>
                       </div>
                       <button onClick={() => getDownloadUrl(doc.file_path)} className="text-[10px] text-violet-500 hover:text-violet-700 transition-colors">View</button>
                       <button onClick={() => setConfirmDeleteDoc(doc)} className="text-[10px] text-red-400 hover:text-red-600 transition-colors ml-2">Delete</button>
@@ -492,31 +502,32 @@ export default function AdminPage() {
               {/* Client notes */}
               {selected.notes && (
                 <div className="bg-white border border-stone-100 rounded-2xl px-4 py-3">
-                  <p className="text-[10px] font-medium text-stone-300 uppercase tracking-widest mb-2">Client notes</p>
-                  <p className="text-xs text-stone-500 leading-relaxed">{selected.notes}</p>
+                  <p className="text-[10px] font-medium text-stone-500 uppercase tracking-widest mb-2">Client notes</p>
+                  <p className="text-xs text-stone-600 leading-relaxed">{selected.notes}</p>
                 </div>
               )}
 
               {/* Internal notes */}
               <div className="bg-white border border-stone-100 rounded-2xl overflow-hidden">
                 <div className="px-4 py-3 border-b border-stone-50">
-                  <p className="text-[10px] font-medium text-stone-300 uppercase tracking-widest">Internal notes</p>
+                  <p className="text-[10px] font-medium text-stone-500 uppercase tracking-widest">Internal notes</p>
                 </div>
                 <div className="max-h-44 overflow-y-auto">
                   {notes.length === 0 ? (
-                    <p className="text-xs text-stone-300 px-4 py-4">No notes yet.</p>
+                    <p className="text-xs text-stone-500 px-4 py-4">No notes yet.</p>
                   ) : (
                     notes.map((note, i) => (
                       <div
                         key={note.id}
-                        className="mx-4 my-2 bg-[#fafaf8] rounded-xl px-3 py-2.5 border-l-2 border-emerald-400"
+                        
+                        className="mx-4 my-2 bg-[#fafaf8] rounded-xl px-3 py-2.5 border-l-2 border-stone-400"
                         style={{ animationDelay: `${i * 60}ms` }}
                       >
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="text-[10px] font-medium text-stone-500">{note.author}</span>
-                          <span className="text-[10px] text-stone-300">{new Date(note.created_at).toLocaleDateString()}</span>
+                          <span className="text-[10px] font-medium text-stone-600">{note.author}</span>
+                          <span className="text-[10px] text-stone-500">{new Date(note.created_at).toLocaleDateString('en-US')}</span>
                         </div>
-                        <p className="text-xs text-stone-500 leading-relaxed">{note.content}</p>
+                        <p className="text-xs text-stone-600 leading-relaxed">{note.content}</p>
                       </div>
                     ))
                   )}
@@ -527,7 +538,7 @@ export default function AdminPage() {
                     onChange={e => setNewNote(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && addNote()}
                     placeholder="Leave a note for the team..."
-                    className="flex-1 bg-[#fafaf8] border-none rounded-lg px-3 py-2 text-xs text-stone-600 placeholder-stone-300 outline-none"
+                    className="flex-1 bg-[#fafaf8] border-none rounded-lg px-3 py-2 text-xs text-stone-600 placeholder-stone-400 outline-none"
                   />
                   <button
                     onClick={addNote}
@@ -543,13 +554,13 @@ export default function AdminPage() {
             {/* Footer actions */}
             {!showArchive && (
               <div className="bg-white border-t border-stone-100 px-6 py-3 flex items-center gap-2">
-                <button onClick={() => updateStatus('pending')} className="px-4 py-2 text-xs border border-stone-200 rounded-lg text-stone-500 hover:bg-stone-50 transition-colors">
+                <button onClick={() => updateStatus('pending')} className="px-4 py-2 text-xs border border-stone-200 rounded-lg text-stone-600 hover:bg-stone-50 transition-colors">
                   Mark as pending
                 </button>
-                <button onClick={() => updateStatus('in_progress')} className="px-4 py-2 text-xs border border-emerald-200 bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 transition-colors">
+                <button onClick={() => updateStatus('in_progress')} className="px-4 py-2 text-xs border border-blue-200 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors">
                   Mark as active
                 </button>
-                <button onClick={() => updateStatus('complete')} className="px-4 py-2 text-xs bg-[#1c1c1e] text-white rounded-lg hover:bg-stone-800 transition-colors ml-auto">
+                <button onClick={() => updateStatus('complete')} className="px-4 py-2 text-xs bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors ml-auto">
                   Mark as complete ✓
                 </button>
               </div>
@@ -559,11 +570,11 @@ export default function AdminPage() {
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
               <div className="w-10 h-10 rounded-xl bg-stone-100 flex items-center justify-center mx-auto mb-3">
-                <svg className="w-5 h-5 text-stone-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5 text-stone-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
               </div>
-              <p className="text-xs text-stone-300">{showArchive ? 'Select an archived client' : 'Select a client to get started'}</p>
+              <p className="text-xs text-stone-500">{showArchive ? 'Select an archived client' : 'Select a client to get started'}</p>
             </div>
           </div>
         )}
