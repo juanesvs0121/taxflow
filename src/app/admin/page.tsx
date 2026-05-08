@@ -372,7 +372,7 @@ export default function AdminPage() {
         {/* Sidebar */}
         <div className={`w-60 ${sidebarBg} border-r ${borderColor} flex flex-col transition-colors duration-300`}>
           <div className="p-3 pb-2">
-            <p className={`text-[10px] font-medium uppercase tracking-widest mb-2.5 ${textTertiary}`}>Clients</p>
+            <p className={`text-[10px] font-medium uppercase tracking-widest mb-2.5 ${textSecondary}`}>Clients</p>
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
@@ -406,7 +406,7 @@ export default function AdminPage() {
             </div>
           )}
 
-          <p className={`text-[10px] px-3 pb-1.5 ${textTertiary}`}>
+          <p className={`text-[10px] px-3 pb-1.5 ${textSecondary}`}>
             {filteredClients.length} client{filteredClients.length !== 1 ? 's' : ''}
           </p>
 
@@ -507,12 +507,12 @@ export default function AdminPage() {
                   { label: 'Joined', value: formatDateUS(selected.created_at) },
                 ].map(s => (
                   <div key={s.label} className={`${cardBg} border ${borderColor} rounded-xl px-3 py-2.5 border-b-2 ${s.accent ? accentBorder(selected.status).replace('border-l-', 'border-b-') : 'border-b-transparent'} transition-colors duration-500`}>
-                    <p className={`text-[9px] font-medium uppercase tracking-widest mb-1 ${textTertiary}`}>{s.label}</p>
+                    <p className={`text-[9px] font-medium uppercase tracking-widest mb-1 ${textSecondary}`}>{s.label}</p>
                     <p className={`text-sm font-medium tracking-tight ${s.accent ? accentText(selected.status) : textPrimary}`}>{s.value}</p>
                   </div>
                 ))}
                 <div className={`${cardBg} border ${borderColor} rounded-xl px-3 py-2.5`}>
-                  <p className={`text-[9px] font-medium uppercase tracking-widest mb-1 ${textTertiary}`}>Assigned to</p>
+                  <p className={`text-[9px] font-medium uppercase tracking-widest mb-1 ${textSecondary}`}>Assigned to</p>
                   {profile?.role === 'admin' ? (
                     <select
                       value={selected.assigned_to || 'Unassigned'}
@@ -534,7 +534,7 @@ export default function AdminPage() {
               {/* Documents */}
               <div className={`${panelBg} border ${borderColor} rounded-2xl overflow-hidden border-t-2 ${accentBorder(selected.status).replace('border-l-', 'border-t-')} transition-colors duration-500`}>
                 <div className={`flex items-center justify-between px-4 py-3 border-b ${borderColor}`}>
-                  <p className={`text-[10px] font-medium uppercase tracking-widest ${textTertiary}`}>Documents</p>
+                  <p className={`text-[10px] font-medium uppercase tracking-widest ${textSecondary}`}>Documents</p>
                   <span className={`text-[10px] font-medium px-2 py-0.5 rounded-md ${statusBadge(selected.status)}`}>
                     {documents.length} file{documents.length !== 1 ? 's' : ''}
                   </span>
@@ -572,7 +572,7 @@ export default function AdminPage() {
               {/* Internal notes */}
               <div className={`${panelBg} border ${borderColor} rounded-2xl overflow-hidden border-l-2 ${accentBorder(selected.status)} transition-colors duration-500`}>
                 <div className={`px-4 py-3 border-b ${borderColor}`}>
-                  <p className={`text-[10px] font-medium uppercase tracking-widest ${textTertiary}`}>Internal notes</p>
+                  <p className={`text-[10px] font-medium uppercase tracking-widest ${textSecondary}`}>Internal notes</p>
                 </div>
                 <div className="max-h-44 overflow-y-auto">
                   {notes.length === 0 ? (
@@ -599,7 +599,7 @@ export default function AdminPage() {
                     onChange={e => setNewNote(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && addNote()}
                     placeholder="Leave a note for the team..."
-                    className={`flex-1 border-none rounded-lg px-3 py-2 text-xs outline-none ${darkMode ? 'bg-white/5 text-white/70 placeholder-white/20' : 'bg-[#fafaf8] text-stone-600 placeholder-stone-400'}`}
+                    className={`flex-1 border-none rounded-lg px-3 py-2 text-xs outline-none ${darkMode ? 'bg-white/5 text-white/90 placeholder-white/20' : 'bg-[#fafaf8] text-stone-600 placeholder-stone-400'}`}
                   />
                   <button
                     onClick={addNote}
