@@ -202,11 +202,11 @@ export default function AdminPage() {
   }
 
   const generateClientLink = () => {
-    const token = Math.random().toString(36).substring(2, 10)
-    const url = `${window.location.origin}/client/${token}`
-    navigator.clipboard.writeText(url)
-    alert(`Link copied!\n\n${url}`)
-  }
+  const token = Math.random().toString(36).substring(2, 10)
+  const url = `${window.location.origin}/s/${token}`
+  navigator.clipboard.writeText(url)
+  alert(`Link copied!\n\n${url}`)
+}
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
