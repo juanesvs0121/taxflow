@@ -6,7 +6,7 @@ const resend = new Resend(process.env.RESEND_API_KEY)
 export async function POST(request: Request) {
   const { clientName, fileCount, state, fiscalYear, assignedTo, token } = await request.json()
 
-  const panelUrl = `${process.env.NEXT_PUBLIC_APP_URL}/admin`
+  const panelUrl = `${process.env.NEXT_PUBLIC_APP_URL}/workspace`
 
   const { error } = await resend.emails.send({
     from: 'TaxFlow <onboarding@resend.dev>',
