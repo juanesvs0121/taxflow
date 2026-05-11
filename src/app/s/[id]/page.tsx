@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { useDropzone } from 'react-dropzone'
 
 export default function ClientPage() {
-  const { token } = useParams()
+  const { id: token } = useParams()
   const [step, setStep] = useState(1)
   const [animating, setAnimating] = useState(false)
   const [loading, setLoading] = useState(false)

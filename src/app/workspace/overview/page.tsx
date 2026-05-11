@@ -88,7 +88,7 @@ export default function DashboardPage() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
-    window.location.href = '/admin/login'
+    window.location.href = '/workspace/login'
   }
 
   const toggleDarkMode = () => {
@@ -152,7 +152,7 @@ export default function DashboardPage() {
         </div>
         <div className="flex items-center gap-2">
           <span className={`text-xs ${textSecondary}`}>{profile?.full_name}</span>
-          <button onClick={() => router.push('/admin')} className="text-xs px-3 py-1.5 rounded-lg bg-[#1c1c1e] text-white hover:bg-stone-800 transition-colors">
+          <button onClick={() => router.push('/workspace')} className="text-xs px-3 py-1.5 rounded-lg bg-[#1c1c1e] text-white hover:bg-stone-800 transition-colors">
             Go to panel →
           </button>
           <button onClick={toggleDarkMode} className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${btnBorder}`}>

@@ -32,7 +32,7 @@ export default function LoginPage() {
       setLoading(false)
       return
     }
-    window.location.href = '/admin'
+    window.location.href = '/workspace'
   }
 
   const bg = darkMode ? 'bg-[#0f0f0f]' : 'bg-[#fafaf8]'
