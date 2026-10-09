@@ -298,7 +298,10 @@ export default function AdminPage() {
     ? "bg-[#1e1e1e] border border-white/10 rounded-2xl p-6 max-w-sm w-full mx-4 shadow-2xl"
     : "bg-white border border-stone-100 rounded-2xl p-6 max-w-sm w-full mx-4 shadow-xl"
 
-  const SidebarContent = () => (
+  // NOTE: these are render functions (called as renderSidebar() / renderDetailPanel()),
+  // NOT components (<Sidebar />). Declaring components inside another component makes
+  // React remount them on every render, which made inputs lose focus after each keystroke.
+  const renderSidebar = () => (
     <>
       <div className="p-3 pb-2">
         <p className={`text-[10px] font-medium uppercase tracking-widest mb-2.5 ${textSecondary}`}>Clients</p>
@@ -410,7 +413,7 @@ export default function AdminPage() {
     </>
   )
 
-  const DetailPanel = () => {
+  const renderDetailPanel = () => {
     if (!selected) return null
     return (
       <div className={`flex-1 flex flex-col overflow-hidden transition-all duration-200 ${panelVisible ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-2'}`}>
@@ -704,7 +707,7 @@ export default function AdminPage() {
                 </svg>
               </button>
             </div>
-            <SidebarContent />
+            {renderSidebar()}
           </div>
         </>
       )}
@@ -713,7 +716,7 @@ export default function AdminPage() {
 
         {/* Desktop sidebar */}
         <div className={`hidden md:flex w-60 ${sidebarBg} border-r ${borderColor} flex-col transition-colors duration-300`}>
-          <SidebarContent />
+          {renderSidebar()}
         </div>
 
         {/* Content area */}
@@ -815,14 +818,14 @@ export default function AdminPage() {
           {/* Mobile: detail view */}
           {mobileShowDetail && selected && (
             <div className="flex-1 flex flex-col overflow-hidden md:hidden">
-              <DetailPanel />
+              {renderDetailPanel()}
             </div>
           )}
 
           {/* Desktop: detail panel or empty state */}
           <div className="hidden md:flex flex-1 flex-col overflow-hidden">
             {selected ? (
-              <DetailPanel />
+              renderDetailPanel()
             ) : (
               <div className={`flex-1 flex items-center justify-center ${bg}`}>
                 <div className="text-center">
