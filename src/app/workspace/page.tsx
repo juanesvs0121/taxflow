@@ -1,17 +1,27 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import type { Client, Document } from '@/lib/supabase'
+
+type Attachment = {
+  name: string
+  path: string
+  type: string
+  size: number
+}
 
 type InternalNote = {
   id: string
   client_id: string
   author: string
   content: string
+  attachments?: Attachment[]
   created_at: string
 }
+
+type PendingFile = { file: File; preview: string | null }
 
 type Profile = {
   id: string
@@ -20,6 +30,43 @@ type Profile = {
 }
 
 const TEAM_MEMBERS = ['Unassigned', 'Admin', 'Team Member 1', 'Team Member 2']
+
+const NOTE_BUCKET = 'note-attachments'
+const MAX_FILE_SIZE = 25 * 1024 * 1024 // 25 MB per file
+
+// Loads a private attachment through the authenticated Supabase client and shows it
+// from a local blob URL (no direct signed URL in the <img>, so no CSP/CORS surprises).
+function NoteImage({ path, name, className }: { path: string; name: string; className?: string }) {
+  const [src, setSrc] = useState<string | null>(null)
+  const [failed, setFailed] = useState(false)
+
+  useEffect(() => {
+    let objectUrl: string | null = null
+    let cancelled = false
+    supabase.storage.from(NOTE_BUCKET).download(path).then(({ data, error }) => {
+      if (cancelled) return
+      if (error || !data) {
+        console.error('Could not load note attachment:', path, error)
+        setFailed(true)
+        return
+      }
+      objectUrl = URL.createObjectURL(data)
+      setSrc(objectUrl)
+    })
+    return () => {
+      cancelled = true
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [path])
+
+  if (failed) {
+    return <div className="w-24 h-24 flex items-center justify-center text-[10px] text-red-400 text-center px-2">Could not load image</div>
+  }
+  if (!src) {
+    return <div className="w-24 h-24 flex items-center justify-center text-[10px] opacity-50">Loading...</div>
+  }
+  return <img src={src} alt={name} className={className} />
+}
 
 export default function AdminPage() {
   const router = useRouter()
@@ -34,6 +81,10 @@ export default function AdminPage() {
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('all')
   const [newNote, setNewNote] = useState('')
+  const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([])
+  const [sendingNote, setSendingNote] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [showArchive, setShowArchive] = useState(false)
   const [confirmArchive, setConfirmArchive] = useState<Client | null>(null)
   const [notification, setNotification] = useState<string | null>(null)
@@ -102,13 +153,92 @@ export default function AdminPage() {
   }
 
   const fetchNotes = async (clientId: string) => {
-    const { data } = await supabase.from('internal_notes').select('*').eq('client_id', clientId).order('created_at', { ascending: true })
+    const { data } = await supabase
+      .from('internal_notes').select('*').eq('client_id', clientId)
+      .order('created_at', { ascending: true })
     if (data) setNotes(data)
   }
+
+  // Opens an image in a new tab, or downloads any other file
+  const openAttachment = async (att: Attachment, asDownload: boolean) => {
+    // Open the tab synchronously so the popup blocker doesn't stop it
+    const w = asDownload ? null : window.open('', '_blank')
+    const { data, error } = await supabase.storage.from(NOTE_BUCKET).download(att.path)
+    if (error || !data) {
+      w?.close()
+      console.error('Could not open attachment:', att.path, error)
+      alert(`Could not open "${att.name}": ${error?.message ?? 'unknown error'}`)
+      return
+    }
+    const url = URL.createObjectURL(data)
+    if (asDownload) {
+      const a = document.createElement('a')
+      a.href = url
+      a.download = att.name
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+    } else if (w) {
+      w.location.href = url
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 60000)
+  }
+
+  const addFiles = (files: File[]) => {
+    const valid: PendingFile[] = []
+    for (const f of files) {
+      if (f.size > MAX_FILE_SIZE) {
+        alert(`"${f.name}" exceeds the 25 MB limit.`)
+        continue
+      }
+      valid.push({ file: f, preview: f.type.startsWith('image/') ? URL.createObjectURL(f) : null })
+    }
+    if (valid.length) setPendingFiles(prev => [...prev, ...valid])
+  }
+
+  const removePending = (index: number) => {
+    setPendingFiles(prev => {
+      const item = prev[index]
+      if (item?.preview) URL.revokeObjectURL(item.preview)
+      return prev.filter((_, i) => i !== index)
+    })
+  }
+
+  const clearPending = () => {
+    pendingFiles.forEach(p => { if (p.preview) URL.revokeObjectURL(p.preview) })
+    setPendingFiles([])
+  }
+
+  // Ctrl+V with a screenshot (Print Screen / Snipping Tool) or copied files
+  const handleNotePaste = (e: React.ClipboardEvent) => {
+    const files = Array.from(e.clipboardData.files)
+    if (files.length === 0) return // plain text: let it paste normally
+    e.preventDefault()
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+    addFiles(files.map((f, i) =>
+      // Screenshots always arrive as "image.png"; give them a unique name
+      f.name === 'image.png'
+        ? new File([f], `screenshot-${stamp}${files.length > 1 ? `-${i + 1}` : ''}.png`, { type: f.type })
+        : f
+    ))
+  }
+
+  const handleNoteDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setDragOver(false)
+    addFiles(Array.from(e.dataTransfer.files))
+  }
+
+  const formatSize = (bytes: number) =>
+    bytes < 1024 * 1024
+      ? `${Math.max(1, Math.round(bytes / 1024))} KB`
+      : `${(bytes / 1024 / 1024).toFixed(1)} MB`
 
   const selectClient = (client: Client) => {
     setPanelVisible(false)
     setSidebarOpen(false)
+    clearPending()
+    setNewNote('')
     setTimeout(() => {
       setSelected(client)
       fetchDocuments(client.id)
@@ -141,13 +271,44 @@ export default function AdminPage() {
   }
 
   const addNote = async () => {
-    if (!newNote.trim() || !selected || !profile) return
-    const { data } = await supabase
-      .from('internal_notes')
-      .insert([{ client_id: selected.id, author: profile.full_name, content: newNote.trim() }])
-      .select().single()
-    if (data) setNotes([...notes, data])
-    setNewNote('')
+    if (!selected || !profile || sendingNote) return
+    const text = newNote.trim()
+    if (!text && pendingFiles.length === 0) return
+
+    setSendingNote(true)
+    try {
+      const attachments: Attachment[] = []
+      for (const { file } of pendingFiles) {
+        const safeName = file.name.replace(/[^\w.\-]+/g, '_')
+        const path = `${selected.id}/${crypto.randomUUID()}-${safeName}`
+        const { error } = await supabase.storage.from(NOTE_BUCKET).upload(path, file, {
+          contentType: file.type || 'application/octet-stream',
+        })
+        if (error) {
+          // If one fails, remove the ones already uploaded to avoid orphans
+          if (attachments.length) await supabase.storage.from(NOTE_BUCKET).remove(attachments.map(a => a.path))
+          alert(`Could not upload "${file.name}": ${error.message}`)
+          return
+        }
+        attachments.push({ name: file.name, path, type: file.type, size: file.size })
+      }
+
+      const { data, error } = await supabase
+        .from('internal_notes')
+        .insert([{ client_id: selected.id, author: profile.full_name, content: text, attachments }])
+        .select().single()
+
+      if (error) {
+        if (attachments.length) await supabase.storage.from(NOTE_BUCKET).remove(attachments.map(a => a.path))
+        alert(`Could not save the note: ${error.message}`)
+        return
+      }
+      if (data) setNotes(prev => [...prev, data])
+      setNewNote('')
+      clearPending()
+    } finally {
+      setSendingNote(false)
+    }
   }
 
   const handleArchiveClick = (e: React.MouseEvent, client: Client) => {
@@ -177,6 +338,13 @@ export default function AdminPage() {
       if (data && data.length > 0) {
         const paths = data.map(f => `${client.id}/${f.name}`)
         await supabase.storage.from('documents').remove(paths)
+      }
+    })
+    // Also remove the attachments from this client's internal notes
+    await supabase.storage.from(NOTE_BUCKET).list(client.id).then(async ({ data }) => {
+      if (data && data.length > 0) {
+        const paths = data.map(f => `${client.id}/${f.name}`)
+        await supabase.storage.from(NOTE_BUCKET).remove(paths)
       }
     })
     await supabase.from('clients').delete().eq('id', client.id)
@@ -537,7 +705,8 @@ export default function AdminPage() {
             <div className={`px-4 py-3 border-b ${borderColor}`}>
               <p className={`text-[10px] font-medium uppercase tracking-widest ${textSecondary}`}>Internal notes</p>
             </div>
-            <div className="max-h-44 overflow-y-auto">
+
+            <div className="max-h-72 overflow-y-auto">
               {notes.length === 0 ? (
                 <p className={`text-xs px-4 py-4 ${textSecondary}`}>No notes yet.</p>
               ) : (
@@ -549,27 +718,121 @@ export default function AdminPage() {
                   >
                     <div className="flex items-center gap-2 mb-1">
                       <span className={`text-[10px] font-medium ${textPrimary}`}>{note.author}</span>
-                      <span className={`text-[10px] ${textSecondary}`}>{new Date(note.created_at).toLocaleDateString('en-US')}</span>
+                      <span className={`text-[10px] ${textSecondary}`}>
+                        {new Date(note.created_at).toLocaleDateString('en-US')} · {new Date(note.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+                      </span>
                     </div>
-                    <p className={`text-xs leading-relaxed ${textSecondary}`}>{note.content}</p>
+
+                    {note.content && (
+                      <p className={`text-xs leading-relaxed whitespace-pre-wrap ${textSecondary}`}>{note.content}</p>
+                    )}
+
+                    {note.attachments && note.attachments.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {note.attachments.map(att => {
+                          if (att.type?.startsWith('image/')) {
+                            return (
+                              <button
+                                key={att.path}
+                                type="button"
+                                onClick={() => openAttachment(att, false)}
+                                title={att.name}
+                                className={`block rounded-lg overflow-hidden border ${borderColor}`}
+                              >
+                                <NoteImage path={att.path} name={att.name} className="max-h-40 max-w-full object-cover" />
+                              </button>
+                            )
+                          }
+                          return (
+                            <button
+                              key={att.path}
+                              type="button"
+                              onClick={() => openAttachment(att, true)}
+                              className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-[11px] ${borderColor} ${textPrimary} ${hoverBg}`}
+                            >
+                              <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                                <polyline points="14 2 14 8 20 8" strokeWidth={1.5} />
+                              </svg>
+                              <span className="max-w-[160px] truncate">{att.name}</span>
+                              <span className={textSecondary}>{formatSize(att.size)}</span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
                   </div>
                 ))
               )}
             </div>
-            <div className={`flex gap-2 px-4 py-3 border-t ${borderColor}`}>
+
+            {/* Files waiting to be sent */}
+            {pendingFiles.length > 0 && (
+              <div className={`flex flex-wrap gap-2 px-4 pt-3 border-t ${borderColor}`}>
+                {pendingFiles.map((p, i) => (
+                  <div
+                    key={i}
+                    className={`relative flex items-center gap-2 rounded-lg border ${borderColor} ${cardBg} ${p.preview ? 'p-0.5' : 'px-2.5 py-1.5'}`}
+                  >
+                    {p.preview ? (
+                      <img src={p.preview} alt={p.file.name} className="h-14 w-14 object-cover rounded-md" />
+                    ) : (
+                      <>
+                        <span className={`text-[11px] max-w-[140px] truncate ${textPrimary}`}>{p.file.name}</span>
+                        <span className={`text-[10px] ${textSecondary}`}>{formatSize(p.file.size)}</span>
+                      </>
+                    )}
+                    <button
+                      onClick={() => removePending(i)}
+                      className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] leading-none flex items-center justify-center"
+                      title="Remove"
+                      type="button"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Compose bar */}
+            <div
+              className={`flex items-center gap-2 px-4 py-3 border-t ${borderColor} ${dragOver ? 'bg-blue-500/10' : ''}`}
+              onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={handleNoteDrop}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={e => { addFiles(Array.from(e.target.files ?? [])); e.target.value = '' }}
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className={`p-2 rounded-lg border transition-colors flex-shrink-0 ${btnBorder}`}
+                title="Attach files"
+                type="button"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                </svg>
+              </button>
               <input
                 value={newNote}
                 onChange={e => setNewNote(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && addNote()}
-                placeholder="Leave a note for the team..."
-                className={`flex-1 border-none rounded-lg px-3 py-2 text-xs outline-none ${darkMode ? 'bg-white/5 text-white/90 placeholder-white/20' : 'bg-[#fafaf8] text-stone-600 placeholder-stone-400'}`}
+                onPaste={handleNotePaste}
+                placeholder="Leave a note for the team... (paste or drop files here)"
+                className={`flex-1 min-w-0 border-none rounded-lg px-3 py-2 text-xs outline-none ${darkMode ? 'bg-white/5 text-white/90 placeholder-white/20' : 'bg-[#fafaf8] text-stone-600 placeholder-stone-400'}`}
               />
               <button
                 onClick={addNote}
-                disabled={!newNote.trim()}
-                className="px-3 py-2 bg-[#1c1c1e] text-white text-xs rounded-lg hover:bg-stone-800 transition-colors disabled:opacity-40"
+                disabled={sendingNote || (!newNote.trim() && pendingFiles.length === 0)}
+                className="px-3 py-2 bg-[#1c1c1e] text-white text-xs rounded-lg hover:bg-stone-800 transition-colors disabled:opacity-40 flex-shrink-0"
               >
-                Add
+                {sendingNote ? 'Sending...' : 'Add'}
               </button>
             </div>
           </div>
