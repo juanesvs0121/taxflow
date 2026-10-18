@@ -3,21 +3,44 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { useDropzone } from 'react-dropzone'
+import { useDropzone, type FileRejection } from 'react-dropzone'
+
+const MAX_FILE_SIZE = 20 * 1024 * 1024 // 20 MB
+const MAX_FILES = 25
+
+type LinkState = 'checking' | 'new' | 'returning' | 'invalid' | 'error'
+type PendingUpload = { path: string; name: string }
+
+async function postJson(url: string, body: unknown) {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  const data = await res.json().catch(() => ({}))
+  return { ok: res.ok, status: res.status, data }
+}
 
 export default function ClientPage() {
-  const { id: token } = useParams()
+  const { id: token } = useParams<{ id: string }>()
   const [step, setStep] = useState(1)
   const [animating, setAnimating] = useState(false)
   const [loading, setLoading] = useState(false)
   const [files, setFiles] = useState<File[]>([])
   const [darkMode, setDarkMode] = useState(false)
-  const [checking, setChecking] = useState(true)
-  const [isReturning, setIsReturning] = useState(false)
+  const [linkState, setLinkState] = useState<LinkState>('checking')
   const [verifyInput, setVerifyInput] = useState('')
+  const [verifying, setVerifying] = useState(false)
+  const [verifyError, setVerifyError] = useState('')
   const [verified, setVerified] = useState(false)
-  const [existingClientId, setExistingClientId] = useState<string | null>(null)
-  const [existingClientData, setExistingClientData] = useState<Record<string, unknown> | null>(null)
+  // What the server uses to re-check who is uploading: the email/phone typed by a
+  // returning client, or the email of a client who just registered.
+  const [identifier, setIdentifier] = useState('')
+  const [registered, setRegistered] = useState(false)
+  const [pendingUploads, setPendingUploads] = useState<PendingUpload[]>([])
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
+  const [submitError, setSubmitError] = useState('')
+  const [fileNotice, setFileNotice] = useState('')
   const [confirmEmail, setConfirmEmail] = useState('')
   const [confirmed, setConfirmed] = useState(false)
   const [visible, setVisible] = useState(false)
@@ -32,19 +55,26 @@ export default function ClientPage() {
     notes: ''
   })
 
+  const isReturning = linkState === 'returning'
+
+  // The server tells us if the link is new, belongs to an existing client, or is invalid.
+  // No client data is sent to the browser at this point.
   useEffect(() => {
-    const checkToken = async () => {
-      const { data } = await supabase
-        .from('clients').select('*').eq('token', token).maybeSingle()
-      if (data) {
-        setIsReturning(true)
-        setExistingClientId(data.id)
-        setExistingClientData(data)
+    let cancelled = false
+    const checkLink = async () => {
+      try {
+        const res = await fetch(`/api/portal/status?token=${encodeURIComponent(token)}`)
+        const data = await res.json()
+        if (cancelled) return
+        const state = data?.state
+        setLinkState(state === 'new' || state === 'returning' || state === 'invalid' ? state : 'error')
+      } catch {
+        if (!cancelled) setLinkState('error')
       }
-      setChecking(false)
-      setTimeout(() => setVisible(true), 80)
+      if (!cancelled) setTimeout(() => setVisible(true), 80)
     }
-    checkToken()
+    checkLink()
+    return () => { cancelled = true }
   }, [token])
 
   const goToStep = (next: number) => {
@@ -56,8 +86,15 @@ export default function ClientPage() {
   }
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop: useCallback((accepted: File[]) => {
+    maxSize: MAX_FILE_SIZE,
+    onDrop: useCallback((accepted: File[], rejections: FileRejection[]) => {
       setFiles(prev => [...prev, ...accepted])
+      if (rejections.length > 0) {
+        const names = rejections.map(r => r.file.name).join(', ')
+        setFileNotice(`Not added (larger than 20 MB): ${names}`)
+      } else {
+        setFileNotice('')
+      }
     }, [])
   })
 
@@ -66,16 +103,23 @@ export default function ClientPage() {
   }
 
   const handleVerify = async () => {
-    const { data } = await supabase
-      .from('clients').select('*').eq('token', token)
-      .or(`email.eq.${verifyInput},phone.eq.${verifyInput}`).maybeSingle()
-    if (data) {
-      setVerified(true)
-      setExistingClientId(data.id)
-      setExistingClientData(data)
-      goToStep(2)
-    } else {
-      alert('We could not verify your identity. Please check your email or phone number.')
+    const value = verifyInput.trim()
+    if (!value) return
+    setVerifying(true)
+    setVerifyError('')
+    try {
+      const { ok } = await postJson('/api/portal/verify', { token, identifier: value })
+      if (ok) {
+        setIdentifier(value)
+        setVerified(true)
+        goToStep(2)
+      } else {
+        setVerifyError('We could not verify your identity. Please check your email or phone number.')
+      }
+    } catch {
+      setVerifyError('Something went wrong. Please try again.')
+    } finally {
+      setVerifying(false)
     }
   }
 
@@ -83,54 +127,82 @@ export default function ClientPage() {
   const canContinue = form.first_name && form.last_name && form.email && confirmEmail && emailsMatch && confirmed
 
   const handleSubmit = async () => {
-    if (files.length === 0) return
-    setLoading(true)
-    try {
-      let clientId = existingClientId
-      let clientData: Record<string, unknown> = form
+    if (files.length === 0 && pendingUploads.length === 0) return
+    if (files.length > MAX_FILES) {
+      setSubmitError(`Please upload up to ${MAX_FILES} files at a time.`)
+      return
+    }
 
-      if (!clientId) {
-        const { data, error } = await supabase
-          .from('clients')
-          .insert([{ ...form, token, fiscal_year: parseInt(form.fiscal_year) }])
-          .select().single()
-        if (error) throw error
-        clientId = data.id
-        clientData = data
-      } else if (existingClientData) {
-        clientData = existingClientData
+    setLoading(true)
+    setSubmitError('')
+
+    try {
+      let proof = identifier
+
+      // New client: create the record once (the server checks that the link is valid).
+      if (linkState === 'new' && !registered) {
+        const reg = await postJson('/api/portal/register', { token, form })
+        if (!reg.ok) throw new Error(reg.data?.error || 'We could not save your information.')
+        setRegistered(true)
+        setIdentifier(form.email)
+        proof = form.email
       }
 
-      let uploadedCount = 0
-      for (const file of files) {
-        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-        const path = `${clientId}/${Date.now()}_${safeName}`
-        const { error: uploadError } = await supabase.storage.from('documents').upload(path, file)
-        if (!uploadError) {
-          await supabase.from('documents').insert([{ client_id: clientId, file_name: file.name, file_path: path }])
-          uploadedCount++
+      const succeeded: PendingUpload[] = []
+      const failed: File[] = []
+
+      if (files.length > 0) {
+        const prep = await postJson('/api/portal/upload-url', {
+          token,
+          identifier: proof,
+          files: files.map(f => ({ name: f.name, size: f.size }))
+        })
+        if (!prep.ok) throw new Error(prep.data?.error || 'We could not prepare the upload.')
+
+        const targets = prep.data.uploads as { path: string; token: string; name: string }[]
+        setProgress({ done: 0, total: files.length })
+
+        for (let i = 0; i < files.length; i++) {
+          const target = targets[i]
+          const { error } = await supabase.storage
+            .from('documents')
+            .uploadToSignedUrl(target.path, target.token, files[i])
+          if (error) failed.push(files[i])
+          else succeeded.push({ path: target.path, name: files[i].name })
+          setProgress({ done: i + 1, total: files.length })
         }
       }
 
-      if (uploadedCount > 0) {
-        await fetch('/api/notify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            clientName: `${clientData.first_name} ${clientData.last_name}`,
-            fileCount: uploadedCount,
-            state: clientData.state,
-            fiscalYear: clientData.fiscal_year,
-            assignedTo: clientData.assigned_to,
-            token
-          })
+      // Files that already went up are never uploaded twice: only the failed ones stay in the list.
+      setFiles(failed)
+      const toComplete = [...pendingUploads, ...succeeded]
+      setPendingUploads(toComplete)
+
+      if (toComplete.length > 0) {
+        const done = await postJson('/api/portal/complete', {
+          token,
+          identifier: proof,
+          uploads: toComplete,
+          notes: isReturning ? form.notes : ''
         })
+        const saved = Number(done.data?.saved ?? 0) + Number(done.data?.alreadySaved ?? 0)
+        if (!done.ok || saved === 0) {
+          throw new Error('Your files were uploaded but could not be saved. Please press Submit again.')
+        }
+        setPendingUploads([])
       }
+
+      if (failed.length > 0) {
+        setSubmitError(`These files could not be uploaded: ${failed.map(f => f.name).join(', ')}. Please press Submit to try again.`)
+        return
+      }
+
       goToStep(3)
-    } catch {
-      alert('Error submitting your information. Please try again.')
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : 'Error submitting your information. Please try again.')
     } finally {
       setLoading(false)
+      setProgress(null)
     }
   }
 
@@ -145,10 +217,30 @@ export default function ClientPage() {
     ? 'bg-white/5 border-white/10 text-white/90 placeholder-white/20'
     : 'bg-[#fafaf8] border-stone-200 text-stone-800 placeholder-stone-300'
 
-  if (checking) {
+  if (linkState === 'checking') {
     return (
       <main className={`min-h-screen ${bg} flex items-center justify-center`}>
         <p className={`text-sm ${textSecondary}`}>Loading...</p>
+      </main>
+    )
+  }
+
+  if (linkState === 'invalid' || linkState === 'error') {
+    return (
+      <main className={`min-h-screen ${bg} flex items-center justify-center px-4`}>
+        <div className={`${cardBg} border ${borderColor} rounded-2xl p-8 max-w-sm w-full text-center border-t-2 border-t-amber-400`}>
+          <span className={`text-xl font-medium tracking-tight ${textPrimary}`}>
+            Tax<span className="text-emerald-500">Flow</span>
+          </span>
+          <h1 className={`text-base font-medium mt-5 mb-2 ${textPrimary}`}>
+            {linkState === 'invalid' ? 'This link is not valid' : 'Something went wrong'}
+          </h1>
+          <p className={`text-sm leading-relaxed ${textSecondary}`}>
+            {linkState === 'invalid'
+              ? 'The link may have expired or been copied incorrectly. Please contact your accountant to get a new one.'
+              : 'We could not load this page. Please refresh and try again in a moment.'}
+          </p>
+        </div>
       </main>
     )
   }
@@ -204,8 +296,13 @@ export default function ClientPage() {
                 placeholder="Email or phone number"
                 className={`w-full border rounded-xl px-3 py-2.5 text-sm outline-none mb-3 ${inputClass}`}
               />
-              <button onClick={handleVerify} className="w-full bg-[#1c1c1e] text-white rounded-xl py-2.5 text-sm font-medium hover:bg-stone-800 transition-colors">
-                Verify identity
+              {verifyError && <p className="text-xs text-red-400 mb-3">{verifyError}</p>}
+              <button
+                onClick={handleVerify}
+                disabled={verifying || !verifyInput.trim()}
+                className="w-full bg-[#1c1c1e] text-white rounded-xl py-2.5 text-sm font-medium hover:bg-stone-800 transition-colors disabled:opacity-40"
+              >
+                {verifying ? 'Verifying...' : 'Verify identity'}
               </button>
             </div>
           )}
@@ -323,6 +420,10 @@ export default function ClientPage() {
                 </div>
               )}
 
+              <p className={`text-[10px] leading-relaxed mb-3 ${textTertiary}`}>
+                We collect this information only to prepare your tax return. It is stored securely and shared only with your accountant&apos;s team.
+              </p>
+
               <button
                 onClick={() => goToStep(2)}
                 disabled={!canContinue}
@@ -360,6 +461,8 @@ export default function ClientPage() {
                 <p className={`text-xs mt-1 ${textTertiary}`}>Any file type · Max 20MB per file</p>
               </div>
 
+              {fileNotice && <p className="text-xs text-amber-600 mb-3">{fileNotice}</p>}
+
               {files.length > 0 && (
                 <div className={`${cardInner} border ${borderColor} rounded-xl p-3 mb-4`}>
                   <p className={`text-[10px] font-medium uppercase tracking-widest mb-2 ${textTertiary}`}>{files.length} file{files.length !== 1 ? 's' : ''} selected</p>
@@ -370,6 +473,12 @@ export default function ClientPage() {
                     </div>
                   ))}
                 </div>
+              )}
+
+              {pendingUploads.length > 0 && (
+                <p className={`text-xs mb-3 ${textSecondary}`}>
+                  {pendingUploads.length} file{pendingUploads.length !== 1 ? 's' : ''} already uploaded. Press Submit to finish.
+                </p>
               )}
 
               <div className="mb-4">
@@ -384,18 +493,24 @@ export default function ClientPage() {
                 />
               </div>
 
+              {submitError && <p className="text-xs text-red-400 mb-3">{submitError}</p>}
+
               <div className="flex gap-3">
-                {!isReturning && (
+                {!isReturning && !registered && (
                   <button onClick={() => goToStep(1)} className={`flex-1 border rounded-xl py-2.5 text-sm transition-colors ${darkMode ? 'border-white/10 text-white/50 hover:bg-white/5' : 'border-stone-200 text-stone-500 hover:bg-stone-50'}`}>
                     ← Back
                   </button>
                 )}
                 <button
                   onClick={handleSubmit}
-                  disabled={loading || files.length === 0}
+                  disabled={loading || (files.length === 0 && pendingUploads.length === 0)}
                   className="flex-[2] bg-[#1c1c1e] text-white rounded-xl py-2.5 text-sm font-medium hover:bg-stone-800 transition-colors disabled:opacity-40"
                 >
-                  {loading ? 'Uploading...' : 'Submit documents'}
+                  {loading
+                    ? progress
+                      ? `Uploading ${progress.done} of ${progress.total}...`
+                      : 'Uploading...'
+                    : 'Submit documents'}
                 </button>
               </div>
             </div>
@@ -417,7 +532,7 @@ export default function ClientPage() {
         </div>
 
         <p className={`text-center text-xs mt-5 ${textTertiary}`}>
-          Your files are encrypted and only your accountant can access them.
+          Your files are sent over an encrypted connection and are only accessible to your accountant&apos;s team.
         </p>
       </div>
     </main>

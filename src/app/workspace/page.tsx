@@ -201,12 +201,23 @@ export default function AdminPage() {
     if (data) window.open(data.signedUrl, '_blank')
   }
 
-  const generateClientLink = () => {
-  const token = Math.random().toString(36).substring(2, 10)
-  const url = `${window.location.origin}/s/${token}`
-  navigator.clipboard.writeText(url)
-  alert(`Link copied!\n\n${url}`)
-}
+  // The link is now saved in the client_links table, so the portal can tell a real
+  // link from an invented one. The token is long and random (not guessable).
+  const generateClientLink = async () => {
+    const token = crypto.randomUUID()
+    const { error } = await supabase.from('client_links').insert([{ token }])
+    if (error) {
+      alert(`Could not create the link: ${error.message}`)
+      return
+    }
+    const url = `${window.location.origin}/s/${token}`
+    try {
+      await navigator.clipboard.writeText(url)
+    } catch {
+      // Clipboard can be blocked by the browser; the link is shown below anyway.
+    }
+    alert(`Link copied!\n\n${url}`)
+  }
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
