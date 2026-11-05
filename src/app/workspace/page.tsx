@@ -68,6 +68,19 @@ function NoteImage({ path, name, className }: { path: string; name: string; clas
   return <img src={src} alt={name} className={className} />
 }
 
+// Returns the MIME type to open a file in the browser's own viewer, or null if the
+// browser can't preview it (those files are downloaded instead).
+// HTML/SVG are deliberately excluded: a blob page would run with this app's origin.
+function previewMime(att: Attachment): string | null {
+  const ext = att.name.split('.').pop()?.toLowerCase() ?? ''
+  const type = (att.type || '').toLowerCase()
+  if (type === 'application/pdf' || ext === 'pdf') return 'application/pdf'
+  if (type === 'text/plain' || ext === 'txt') return 'text/plain'
+  if (type.startsWith('video/') && type !== 'video/x-msvideo') return type
+  if (type.startsWith('audio/')) return type
+  return null
+}
+
 export default function AdminPage() {
   const router = useRouter()
   const [profile, setProfile] = useState<Profile | null>(null)
@@ -159,7 +172,8 @@ export default function AdminPage() {
     if (data) setNotes(data)
   }
 
-  // Opens an image in a new tab, or downloads any other file
+  // Opens an image or previewable file (PDF, text, audio, video) in a new tab,
+  // or downloads any other file
   const openAttachment = async (att: Attachment, asDownload: boolean) => {
     // Open the tab synchronously so the popup blocker doesn't stop it
     const w = asDownload ? null : window.open('', '_blank')
@@ -170,7 +184,9 @@ export default function AdminPage() {
       alert(`Could not open "${att.name}": ${error?.message ?? 'unknown error'}`)
       return
     }
-    const url = URL.createObjectURL(data)
+    // Force the right MIME type so the browser shows it instead of downloading it
+    const mime = asDownload ? null : previewMime(att)
+    const url = URL.createObjectURL(mime ? new Blob([data], { type: mime }) : data)
     if (asDownload) {
       const a = document.createElement('a')
       a.href = url
@@ -743,12 +759,14 @@ export default function AdminPage() {
                               </button>
                             )
                           }
+                          const canPreview = previewMime(att) !== null
                           return (
                             <button
                               key={att.path}
                               type="button"
-                              onClick={() => openAttachment(att, true)}
-                              className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-[11px] ${borderColor} ${textPrimary} ${hoverBg}`}
+                              onClick={() => openAttachment(att, !canPreview)}
+                              title={canPreview ? `Open ${att.name} in a new tab` : `Download ${att.name}`}
+                              className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-[11px] cursor-pointer ${borderColor} ${textPrimary} ${hoverBg}`}
                             >
                               <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
