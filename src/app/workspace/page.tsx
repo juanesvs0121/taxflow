@@ -101,10 +101,14 @@ export default function AdminPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [showArchive, setShowArchive] = useState(false)
   const [confirmArchive, setConfirmArchive] = useState<Client | null>(null)
-  const [notification, setNotification] = useState<string | null>(null)
+  const [notification, setNotification] = useState<{ message: string; type: 'doc' | 'note' } | null>(null)
   const [confirmDeleteClient, setConfirmDeleteClient] = useState<Client | null>(null)
   const [confirmDeleteDoc, setConfirmDeleteDoc] = useState<Document | null>(null)
   const [panelVisible, setPanelVisible] = useState(false)
+  const selectedRef = useRef<Client | null>(null)
+  selectedRef.current = selected
+  // Unread badges per client: { [clientId]: { docs: number; notes: number } }
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, { docs: number; notes: number }>>({})
 
   // MOBILE: controls whether the sidebar drawer is open on small screens
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -121,26 +125,74 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (!profile) return
+
     const channel = supabase
-      .channel('documents-changes')
+      .channel('workspace-realtime')
       .on('postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'documents' },
         async (payload) => {
+          console.log('[REALTIME] Document payload:', payload); const newDoc = payload.new as Document
           const { data: client } = await supabase
             .from('clients')
             .select('first_name, last_name')
-            .eq('id', payload.new.client_id)
+            .eq('id', newDoc.client_id)
             .single()
+
           if (client) {
-            setNotification(`${client.first_name} ${client.last_name} just uploaded a new file`)
+            setNotification({ message: `${client.first_name} ${client.last_name} just uploaded a new file`, type: 'doc' })
             setTimeout(() => setNotification(null), 5000)
             await fetchClients(profile)
+
+            if (selectedRef.current?.id === newDoc.client_id) {
+              fetchDocuments(newDoc.client_id)
+            } else {
+              setUnreadCounts(prev => ({
+                ...prev,
+                [newDoc.client_id]: {
+                  docs: (prev[newDoc.client_id]?.docs || 0) + 1,
+                  notes: prev[newDoc.client_id]?.notes || 0,
+                }
+              }))
+            }
           }
         }
       )
-      .subscribe()
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'internal_notes' },
+        async (payload) => {
+          console.log('[REALTIME] Note payload:', payload, 'currentProfile:', profile?.full_name); const note = payload.new as InternalNote
+          // Only notify if author is someone else
+          if (note.author !== profile.full_name) {
+            const { data: client } = await supabase
+              .from('clients')
+              .select('first_name, last_name')
+              .eq('id', note.client_id)
+              .single()
+
+            const clientName = client ? `${client.first_name} ${client.last_name}` : 'Client'
+            setNotification({ message: `${note.author} left a note on ${clientName}`, type: 'note' })
+            setTimeout(() => setNotification(null), 5000)
+
+            if (selectedRef.current?.id === note.client_id) {
+              setNotes(prev => (prev.some(n => n.id === note.id) ? prev : [...prev, note]))
+            } else {
+              setUnreadCounts(prev => ({
+                ...prev,
+                [note.client_id]: {
+                  docs: prev[note.client_id]?.docs || 0,
+                  notes: (prev[note.client_id]?.notes || 0) + 1,
+                }
+              }))
+            }
+          }
+        }
+      )
+      .subscribe((status) => {
+      console.log('[REALTIME] subscription status:', status)
+    })
+
     return () => { supabase.removeChannel(channel) }
-  }, [profile])
+  }, [profile?.id])
 
   const init = async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -252,6 +304,13 @@ export default function AdminPage() {
       : `${(bytes / 1024 / 1024).toFixed(1)} MB`
 
   const selectClient = (client: Client) => {
+    // Clear unread badge for this client
+    setUnreadCounts(prev => {
+      if (!prev[client.id]) return prev
+      const next = { ...prev }
+      delete next[client.id]
+      return next
+    })
     setPanelVisible(false)
     setSidebarOpen(false)
     clearPending()
@@ -581,8 +640,24 @@ export default function AdminPage() {
                 : `border-l-transparent ${hoverBg}`
             }`}
           >
-            <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-[11px] font-medium flex-shrink-0 ${avatarColors[i % avatarColors.length]}`}>
-              {initials(client)}
+            <div className="relative flex-shrink-0">
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-[11px] font-medium ${avatarColors[i % avatarColors.length]}`}>
+                {initials(client)}
+              </div>
+              {unreadCounts[client.id] && (
+                <span
+                  title={`${unreadCounts[client.id]?.docs ? `${unreadCounts[client.id].docs} new file(s) ` : ''}${unreadCounts[client.id]?.notes ? `${unreadCounts[client.id].notes} new note(s)` : ''}`}
+                  className={`absolute -top-1 -right-1 flex h-4 min-w-4 px-1 items-center justify-center rounded-full text-[9px] font-bold text-white shadow-sm ring-2 ring-white dark:ring-[#161616] animate-pulse ${
+                    unreadCounts[client.id]?.notes && !unreadCounts[client.id]?.docs
+                      ? 'bg-blue-500'
+                      : unreadCounts[client.id]?.docs && !unreadCounts[client.id]?.notes
+                      ? 'bg-emerald-500'
+                      : 'bg-indigo-500'
+                  }`}
+                >
+                  {(unreadCounts[client.id].docs || 0) + (unreadCounts[client.id].notes || 0)}
+                </span>
+              )}
             </div>
             <div className="flex-1 min-w-0">
               <p className={`text-xs font-medium truncate capitalize transition-colors ${textPrimary}`}>
@@ -914,8 +989,8 @@ export default function AdminPage() {
       {/* Notification */}
       {notification && (
         <div className="fixed bottom-6 right-4 left-4 sm:left-auto sm:right-6 sm:w-auto z-50 bg-[#1c1c1e] text-white text-xs px-4 py-3 rounded-xl flex items-center gap-3 shadow-lg">
-          <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse flex-shrink-0" />
-          <span className="flex-1">{notification}</span>
+          <div className={`w-2 h-2 rounded-full animate-pulse flex-shrink-0 ${notification.type === 'note' ? 'bg-blue-400 ring-2 ring-blue-400/30' : 'bg-emerald-400 ring-2 ring-emerald-400/30'}`} />
+          <span className="flex-1">{notification.message}</span>
           <button onClick={() => setNotification(null)} className="text-white/40 hover:text-white transition-colors ml-1">✕</button>
         </div>
       )}
@@ -1114,8 +1189,23 @@ export default function AdminPage() {
                       onClick={() => selectClient(client)}
                       className={`flex items-center gap-3 px-3 py-3 rounded-xl cursor-pointer transition-all duration-150 mb-1 ${hoverBg}`}
                     >
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xs font-medium flex-shrink-0 ${avatarColors[i % avatarColors.length]}`}>
-                        {initials(client)}
+                      <div className="relative flex-shrink-0">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xs font-medium ${avatarColors[i % avatarColors.length]}`}>
+                          {initials(client)}
+                        </div>
+                        {unreadCounts[client.id] && (
+                          <span
+                            className={`absolute -top-1 -right-1 flex h-4 min-w-4 px-1 items-center justify-center rounded-full text-[9px] font-bold text-white shadow-sm ring-2 ring-white dark:ring-[#161616] animate-pulse ${
+                              unreadCounts[client.id]?.notes && !unreadCounts[client.id]?.docs
+                                ? 'bg-blue-500'
+                                : unreadCounts[client.id]?.docs && !unreadCounts[client.id]?.notes
+                                ? 'bg-emerald-500'
+                                : 'bg-indigo-500'
+                            }`}
+                          >
+                            {(unreadCounts[client.id].docs || 0) + (unreadCounts[client.id].notes || 0)}
+                          </span>
+                        )}
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className={`text-sm font-medium capitalize ${textPrimary}`}>
