@@ -93,6 +93,7 @@ export default function AdminPage() {
   const [darkMode, setDarkMode] = useState(false)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('all')
+  const [assigneeFilter, setAssigneeFilter] = useState('all')
   const [newNote, setNewNote] = useState('')
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([])
   const [sendingNote, setSendingNote] = useState(false)
@@ -420,7 +421,8 @@ export default function AdminPage() {
   const filteredClients = (showArchive ? archivedClients : activeClients).filter(c => {
     const matchesSearch = `${c.first_name} ${c.last_name}`.toLowerCase().includes(search.toLowerCase())
     const matchesFilter = filter === 'all' || c.status === filter
-    return matchesSearch && matchesFilter
+    const matchesAssignee = assigneeFilter === 'all' || (c.assigned_to || 'Unassigned') === assigneeFilter
+    return matchesSearch && matchesFilter && matchesAssignee
   })
 
   const statusLabel = (status: string) => {
@@ -493,6 +495,19 @@ export default function AdminPage() {
     ? "bg-[#1e1e1e] border border-white/10 rounded-2xl p-6 max-w-sm w-full mx-4 shadow-2xl"
     : "bg-white border border-stone-100 rounded-2xl p-6 max-w-sm w-full mx-4 shadow-xl"
 
+
+  const memberInitials = (name: string) => {
+    const parts = name.split(' ')
+    if (parts.length === 1) return name.slice(0, 2).toUpperCase()
+    const last = parts[parts.length - 1]
+    return (parts[0][0] + (isNaN(Number(last)) ? (parts[1] ? parts[1][0] : parts[0][1] ?? '') : last)).toUpperCase()
+  }
+
+  const memberAvatarColor = (name: string) => {
+    const idx = TEAM_MEMBERS.indexOf(name)
+    return avatarColors[idx % avatarColors.length]
+  }
+
   // NOTE: these are render functions (called as renderSidebar() / renderDetailPanel()),
   // NOT components (<Sidebar />). Declaring components inside another component makes
   // React remount them on every render, which made inputs lose focus after each keystroke.
@@ -530,6 +545,24 @@ export default function AdminPage() {
               </button>
             )
           })}
+        </div>
+      )}
+
+      {profile?.role === 'admin' && !showArchive && (
+        <div className="px-3 pb-2">
+          <div className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg border ${borderColor} ${darkMode ? 'bg-white/5' : 'bg-[#fafaf8]'}`}>
+            <span className={`text-[10px] font-medium uppercase tracking-wider ${textTertiary}`}>Assignee</span>
+            <select
+              value={assigneeFilter}
+              onChange={e => setAssigneeFilter(e.target.value)}
+              className={`text-[11px] font-medium bg-transparent border-none outline-none cursor-pointer text-right max-w-[130px] truncate ${textPrimary}`}
+            >
+              <option value="all" className={darkMode ? 'bg-[#161616]' : 'bg-white'}>Everyone</option>
+              {TEAM_MEMBERS.filter(m => m !== 'Unassigned').map(m => (
+                <option key={m} value={m} className={darkMode ? 'bg-[#161616]' : 'bg-white'}>{m}</option>
+              ))}
+            </select>
+          </div>
         </div>
       )}
 
@@ -1052,6 +1085,25 @@ export default function AdminPage() {
                     })}
                   </div>
                 )}
+
+                {profile?.role === 'admin' && !showArchive && (
+                  <div className="px-3 pb-2.5">
+                    <div className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg border ${borderColor} ${darkMode ? 'bg-white/5' : 'bg-[#fafaf8]'}`}>
+                      <span className={`text-[10px] font-medium uppercase tracking-wider ${textTertiary}`}>Assignee</span>
+                      <select
+                        value={assigneeFilter}
+                        onChange={e => setAssigneeFilter(e.target.value)}
+                        className={`text-[11px] font-medium bg-transparent border-none outline-none cursor-pointer text-right max-w-[140px] truncate ${textPrimary}`}
+                      >
+                        <option value="all" className={darkMode ? 'bg-[#161616]' : 'bg-white'}>Everyone</option>
+                        {TEAM_MEMBERS.filter(m => m !== 'Unassigned').map(m => (
+                          <option key={m} value={m} className={darkMode ? 'bg-[#161616]' : 'bg-white'}>{m}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                )}
+
                 <p className={`text-[10px] px-3 pb-2 ${textSecondary}`}>
                   {filteredClients.length} client{filteredClients.length !== 1 ? 's' : ''}
                 </p>
